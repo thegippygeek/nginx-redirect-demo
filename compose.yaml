@@ -21,6 +21,13 @@ services:
     # READ-ONLY, deliberately (D-41 / T-03-05). See the volumes block at the foot.
     volumes:
       - demo-keys:/keys:ro
+      # Host-local time. Every timestamp the presenter or the room sees — the
+      # status-page clock, the access-log lines in `make logs` — must read as
+      # the wall clock in the room, not UTC. Mounting the host's own
+      # /etc/localtime makes the container follow whatever host runs the demo,
+      # with no tzdata package and no hardcoded zone (musl reads this file
+      # directly; a bare `TZ=` env would silently stay UTC on Alpine).
+      - /etc/localtime:/etc/localtime:ro
     # Load-bearing, not decorative: plan 01-02's proxy gates on
     # `condition: service_healthy` because nginx refuses to start when an
     # upstream hostname does not yet resolve (RESEARCH Pitfall 4).
@@ -42,6 +49,8 @@ services:
     ports: ["127.0.0.1:9091:80"]
     volumes:
       - demo-keys:/keys:ro
+      # Host-local time — see server-old. Both backends log in the room's zone.
+      - /etc/localtime:/etc/localtime:ro
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost/healthz"]
       interval: 3s
@@ -54,6 +63,9 @@ services:
   proxy:
     image: nginx:1.30-alpine
     volumes:
+      # Host-local time — see server-old. nginx renders $time_iso8601 in this
+      # zone, so the evidence log and `make logs` match the room's wall clock.
+      - /etc/localtime:/etc/localtime:ro
       # The DIRECTORY is mounted, not the single file (RESEARCH Pitfall 10):
       # an editor that replaces the file's inode on the presenter's machine
       # cannot leave the container holding stale content.
@@ -108,7 +120,7 @@ services:
     # own diagnostics and they never reach `docker compose logs status`.
     command: ["python3", "-u", "/app/status.py"]
     volumes:
-      # ALL THREE MOUNTS ARE READ-ONLY, and the evidence one is the load-bearing
+      # ALL FOUR MOUNTS ARE READ-ONLY, and the evidence one is the load-bearing
       # one: it is what lets the reading be believed. The tier that REPORTS the
       # evidence provably cannot alter it. That is also why D-36's truncation is
       # issued into the proxy container rather than here, and why no
@@ -123,6 +135,10 @@ services:
       # The proxy mounts the same directory for the same reason.
       - ./proxy:/etc/nginx/demo:ro
       - demo-logs:/var/log/demo:ro
+      # Host-local time — see server-old. This is THE surface that matters: the
+      # projected status clock (served_at, traffic_at) is rendered here via
+      # time.localtime(), which reads /etc/localtime.
+      - /etc/localtime:/etc/localtime:ro
     # Loopback only, continuing 9090/9091/9092/9093's narration mnemonic. The
     # rig is never offered to conference wifi (T-02-05).
     ports: ["127.0.0.1:9094:9094"]
