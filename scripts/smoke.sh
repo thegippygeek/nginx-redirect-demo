@@ -268,14 +268,64 @@ settle_flip() {
 	return 1
 }
 
-# The cutover section is DESTRUCTIVE by design: it rewrites the flip include and
-# stops a backend. This mirrors guard_check()'s discipline so an interrupted run
-# still leaves the rig on `old` with everything running.
+# The cutover section is DESTRUCTIVE by design: it rewrites the flip include,
+# moves it out of the way, and stops both a backend and the proxy. This mirrors
+# guard_check()'s discipline so an interrupted run still leaves the rig on `old`
+# with everything running.
 restore_flip_state() {
 	_flipbak=$(mktemp)
 	cp proxy/active-backend.conf "$_flipbak"
-	trap 'cp "$_flipbak" proxy/active-backend.conf; docker compose up -d server-old server-new >/dev/null 2>&1; docker compose exec -T proxy nginx -s reload >/dev/null 2>&1; rm -f "$_flipbak"; exit 1' INT TERM
-	trap 'cp "$_flipbak" proxy/active-backend.conf; docker compose up -d server-old server-new >/dev/null 2>&1; docker compose exec -T proxy nginx -s reload >/dev/null 2>&1; rm -f "$_flipbak"' EXIT
+	trap 'cp "$_flipbak" proxy/active-backend.conf; docker compose up -d server-old server-new proxy status >/dev/null 2>&1; docker compose exec -T proxy nginx -s reload >/dev/null 2>&1; rm -f "$_flipbak"; exit 1' INT TERM
+	trap 'cp "$_flipbak" proxy/active-backend.conf; docker compose up -d server-old server-new proxy status >/dev/null 2>&1; docker compose exec -T proxy nginx -s reload >/dev/null 2>&1; rm -f "$_flipbak"' EXIT
+}
+
+# ---- the evidence service (02-02) ----------------------------------------
+#
+# /api/status is rendered with a two-space indent, so every TOP-LEVEL key sits
+# at column 3 and every nested key one level deeper. The readers below anchor on
+# that indent plus the QUOTED key name, which is why a nested key of the same
+# name — or a substring of one — cannot satisfy an assertion.
+#
+# Deliberately grep/sed rather than a JSON tool: the shipped demo has no host
+# runtime (ENV-03), and the contract keys are fixed by 02-02-PLAN's api_contract.
+STATUS_URL=http://localhost:9094/api/status
+
+# status_get <outfile> — snapshot /api/status onto the host.
+status_get() {
+	curl -sS --max-time 3 "$STATUS_URL" >"$1" 2>/dev/null
+}
+
+# jfield <file> <key> — a TOP-LEVEL scalar, unquoted, comma stripped.
+jfield() {
+	sed -n "s/^  \"$2\": \(.*\)/\1/p" "$1" | head -1 | sed 's/,$//; s/^"//; s/"$//'
+}
+
+# jnest <file> <key> — a key one level in: counts.OLD/NEW and every boundary field.
+jnest() {
+	sed -n "s/^    \"$2\": \(.*\)/\1/p" "$1" | head -1 | sed 's/,$//; s/^"//; s/"$//'
+}
+
+# jrow0 <file> <key> — a key of rows[0]. `rows` is newest-first and is the only
+# array of objects in the contract, so the first match at this depth IS rows[0].
+jrow0() {
+	sed -n "s/^      \"$2\": \(.*\)/\1/p" "$1" | head -1 | sed 's/,$//; s/^"//; s/"$//'
+}
+
+# jrows <file> — how many request rows the response carries.
+jrows() {
+	grep -c '^      "path":' "$1"
+}
+
+# manual_flip <old|new> — rewrite the selector and reload WITHOUT flip.sh, so
+# the evidence log survives. flip.sh old truncates it (D-36), which would
+# destroy a deliberately-constructed two-transition window.
+manual_flip() {
+	_mtmp=$(mktemp)
+	sed "s/default [A-Za-z0-9_.-]*;/default $1;/" proxy/active-backend.conf >"$_mtmp"
+	cp "$_mtmp" proxy/active-backend.conf
+	rm -f "$_mtmp"
+	docker compose exec -T proxy nginx -s reload >/dev/null 2>&1
+	settle_flip "$1"
 }
 
 # Clears what restore_flip_state installed, once the section has put the rig
@@ -467,6 +517,272 @@ section_cutover() {
 	_awk_out=$(docker compose logs --tail 5 -t proxy 2>/dev/null | awk "$_awk" | grep -c .)
 	assert "EVID-01 the logs-demo awk filter passes every line through" \
 		"test '$_awk_in' != '0' && test '$_awk_in' = '$_awk_out'"
+
+	# ================================================================
+	# EVID-02 / EVID-03 — the evidence service (02-02)
+	# ================================================================
+	#
+	# Every assertion below reads /api/status, which recomputes the whole world
+	# from two files plus one liveness probe on each request. The service holds
+	# no counter, cursor or cache, so there is nothing here to "reset" between
+	# groups beyond the evidence log itself.
+
+	_st=$(mktemp)
+
+	assert "D-25 the status service is the healthy fourth container" \
+		'docker compose ps status --format "{{.Health}}" | grep -q "^healthy$"'
+
+	# T-02-05 / Pitfall 9: `docker compose port`, never a ps --format grep —
+	# Compose collapses adjacent published ports on one service into a range.
+	assert "T-02-05 the status port is published on loopback only" \
+		'docker compose port status 9094 | grep -q "^127.0.0.1:9094$"'
+
+	# T-02-04: the tier that REPORTS the evidence must provably be unable to
+	# alter it. Both mounts are :ro, which is what makes the reading believable.
+	# The positive half of each pair matters: without it a missing service would
+	# satisfy the negation vacuously and the mount would go unasserted.
+	assert "T-02-04 the status container CANNOT truncate the evidence it reports" \
+		'docker compose exec -T status sh -c "test -r /var/log/demo/access.log" && ! docker compose exec -T status sh -c ": > /var/log/demo/access.log"'
+	assert "T-02-04 the status container CANNOT alter the config it reports" \
+		'docker compose exec -T status sh -c "test -r /etc/nginx/demo/active-backend.conf" && ! docker compose exec -T status sh -c ": > /etc/nginx/demo/active-backend.conf"'
+
+	# T-02-06 / D-29: the container-runtime socket is a full privilege
+	# escalation on a machine that may not be the presenter's. Never mounted.
+	assert "T-02-06 no container-runtime socket is mounted anywhere" \
+		'test "$(grep -c docker.sock compose.yaml)" = "0"'
+
+	assert "D-25 /healthz answers 200 for the container healthcheck" \
+		'test "$(curl -sS -o /dev/null -w "%{http_code}" http://localhost:9094/healthz)" = "200"'
+
+	# ---- EVID-02 / D-27: TWO readings, never one merged value ----
+
+	sh scripts/flip.sh old >/dev/null 2>&1
+	settle_flip old
+	curl -sS -o /dev/null http://localhost:9092/whoami
+	sleep 0.4
+	status_get "$_st"
+	_ecfg=$(jfield "$_st" config)
+	_etraf=$(jfield "$_st" traffic)
+	_ehascfg=$(grep -c '^  "config":' "$_st")
+	_ehastraf=$(grep -c '^  "traffic":' "$_st")
+	assert "EVID-02 /api/status carries config AND traffic as two independently sourced keys" \
+		"test '$_ehascfg' = '1' && test '$_ehastraf' = '1' && test '$_ecfg' = 'OLD' && test '$_etraf' = 'OLD'"
+
+	# The gap between editing the file and nginx picking it up is the most
+	# instructive part of the mechanism (D-27). Edit WITHOUT reloading.
+	manual_edit=$(mktemp)
+	sed 's/default old;/default new;/' proxy/active-backend.conf >"$manual_edit"
+	cp "$manual_edit" proxy/active-backend.conf
+	rm -f "$manual_edit"
+	sleep 0.5
+	status_get "$_st"
+	_pcfg=$(jfield "$_st" config)
+	_ptraf=$(jfield "$_st" traffic)
+	_psync=$(jfield "$_st" sync)
+	assert "EVID-02 config edited without a reload: sync PENDING, config NEW, traffic still OLD" \
+		"test '$_pcfg' = 'NEW' && test '$_ptraf' = 'OLD' && test '$_psync' = 'PENDING'"
+
+	docker compose exec -T proxy nginx -s reload >/dev/null 2>&1
+	settle_flip new
+	curl -sS -o /dev/null http://localhost:9092/whoami
+	sleep 0.4
+	status_get "$_st"
+	_icfg=$(jfield "$_st" config)
+	_itraf=$(jfield "$_st" traffic)
+	_isync=$(jfield "$_st" sync)
+	assert "EVID-02 the reload closes the gap: sync IN_SYNC with config == traffic == NEW" \
+		"test '$_icfg' = 'NEW' && test '$_itraf' = 'NEW' && test '$_isync' = 'IN_SYNC'"
+
+	# ---- EVID-02 / D-28 / Pitfall 6: a readable log is not proof nginx is alive ----
+	# After `stop proxy` the evidence file is still perfectly readable. A
+	# file-only design keeps rendering a confident backend reading — the single
+	# most damaging defect available in this phase.
+
+	docker compose stop proxy >/dev/null 2>&1
+	_i=0
+	_ustate=""
+	while [ "$_i" -lt 10 ]; do
+		status_get "$_st"
+		_ustate=$(jfield "$_st" state)
+		[ "$_ustate" = "UNAVAILABLE" ] && break
+		_i=$((_i + 1))
+		sleep 0.5
+	done
+	_ufail=$(jfield "$_st" failing_source)
+	_utraf=$(grep -cE '^  "traffic": "(OLD|NEW)"' "$_st")
+	_ucfg=$(grep -cE '^  "config": "(OLD|NEW)"' "$_st")
+	_ustatus_up=$(docker compose ps status --format '{{.State}}' | tr -d '[:space:]')
+	_evstillthere=$(docker compose exec -T status sh -c 'test -r /var/log/demo/access.log && echo yes' 2>/dev/null | tr -d '[:space:]')
+
+	assert "EVID-02 stopping the proxy reaches UNAVAILABLE within 5 s" \
+		"test '$_ustate' = 'UNAVAILABLE'"
+	assert "EVID-02 the UNAVAILABLE reading blanks BOTH readings and names proxy as the source" \
+		"test '$_utraf' = '0' && test '$_ucfg' = '0' && test '$_ufail' = 'proxy'"
+	assert "D-28 the evidence file is still readable — the proxy probe is what caught it" \
+		"test '$_evstillthere' = 'yes'"
+	assert "D-25 stopping the proxy does NOT stop the status service" \
+		"test '$_ustatus_up' = 'running'"
+
+	docker compose up -d --wait proxy >/dev/null 2>&1
+	settle_flip new
+	curl -sS -o /dev/null http://localhost:9092/whoami
+	sleep 0.4
+	status_get "$_st"
+	_rstate=$(jfield "$_st" state)
+	assert "EVID-02 restarting the proxy restores state OK" \
+		"test '$_rstate' = 'OK'"
+
+	# ---- EVID-02 / UI-SPEC 3a: partial failure collapses to FULL UNAVAILABLE ----
+	# The evidence log stays perfectly healthy throughout; only the config goes.
+
+	_cbak=$(mktemp)
+	cp proxy/active-backend.conf "$_cbak"
+	rm -f proxy/active-backend.conf
+	sleep 0.5
+	status_get "$_st"
+	_dstate=$(jfield "$_st" state)
+	_dsync=$(jfield "$_st" sync)
+	_dfail=$(jfield "$_st" failing_source)
+	_ddetail=$(jfield "$_st" detail)
+	_dcfg=$(grep -cE '^  "config": "(OLD|NEW)"' "$_st")
+	_dtraf=$(grep -cE '^  "traffic": "(OLD|NEW)"' "$_st")
+	_drows=$(jrows "$_st")
+	cp "$_cbak" proxy/active-backend.conf
+	rm -f "$_cbak"
+	sleep 0.5
+
+	assert "EVID-02 an unreadable config yields FULL UNAVAILABLE — never a half-lit page" \
+		"test '$_dstate' = 'UNAVAILABLE' && test '$_dcfg' = '0' && test '$_dtraf' = '0' && test '$_drows' = '0'"
+	assert "EVID-02 the unreadable config reports sync CANNOT_DETERMINE, failing_source config" \
+		"test '$_dsync' = 'CANNOT_DETERMINE' && test '$_dfail' = 'config'"
+	# T-02-09: the detail line is a path plus a lowercased OS error and nothing
+	# else. No traceback, no environment — it is projected in front of a room.
+	assert "T-02-09 the UNAVAILABLE detail names the path and the reason, with no traceback" \
+		"echo '$_ddetail' | grep -q '^/.* — .*$' && ! echo '$_ddetail' | grep -q 'Traceback'"
+
+	# ---- EVID-03: the recent-requests table ----
+
+	sh scripts/flip.sh old >/dev/null 2>&1
+	settle_flip old
+	_upath="/evid-row0-$$"
+	curl -sS -o /dev/null "http://localhost:9092$_upath"
+	sleep 0.4
+	status_get "$_st"
+	_r0path=$(jrow0 "$_st" path)
+	_r0back=$(jrow0 "$_st" backend)
+	assert "EVID-03 a uniquely-pathed :9092 request is rows[0] with the backend that answered it" \
+		"test '$_r0path' = '$_upath' && test '$_r0back' = 'OLD'"
+
+	# The flip, seen from the evidence side. flip.sh issues exactly one
+	# confirming request, so there is exactly one post-flip row afterwards.
+	sh scripts/flip.sh new >/dev/null 2>&1
+	settle_flip new
+	sleep 0.4
+	status_get "$_st"
+	_bfrom=$(jnest "$_st" from)
+	_bto=$(jnest "$_st" to)
+	_bidx=$(jnest "$_st" row_index)
+	_bsince=$(jfield "$_st" since_flip_s)
+	assert "EVID-03 after a flip the boundary reports from OLD to NEW" \
+		"test '$_bfrom' = 'OLD' && test '$_bto' = 'NEW'"
+	# 02-UI-SPEC.md:456 — row_index is the count of rows rendered ABOVE the
+	# boundary, and rows above it are by definition post-flip.
+	assert "EVID-03 boundary.row_index is 1 with one post-flip row (min(3, post_flip_row_count))" \
+		"test '$_bidx' = '1'"
+	assert "EVID-03 since_flip_s is computed server-side and is present" \
+		"test -n '$_bsince' && test '$_bsince' != 'null'"
+
+	_i=0
+	while [ "$_i" -lt 4 ]; do
+		curl -sS -o /dev/null http://localhost:9092/whoami
+		_i=$((_i + 1))
+	done
+	sleep 0.4
+	status_get "$_st"
+	_bidx2=$(jnest "$_st" row_index)
+	assert "EVID-03 boundary.row_index pins at 3 once post-flip rows exceed the ceiling" \
+		"test '$_bidx2' = '3'"
+
+	# Pitfall 7: three healthcheck intervals of pure silence. The proxy's probe
+	# targets :8081, whose `access_log off` suppresses BOTH sinks; the status
+	# service's own liveness probe targets the same listener.
+	status_get "$_st"
+	_hc1o=$(jnest "$_st" OLD)
+	_hc1n=$(sed -n 's/^    "NEW": \([0-9]*\).*/\1/p' "$_st" | head -1)
+	_hcl1=$(docker compose exec -T proxy sh -c 'wc -l < /var/log/demo/access.log' 2>/dev/null | tr -d '[:space:]')
+	sleep 10
+	status_get "$_st"
+	_hc2o=$(jnest "$_st" OLD)
+	_hc2n=$(sed -n 's/^    "NEW": \([0-9]*\).*/\1/p' "$_st" | head -1)
+	_hcl2=$(docker compose exec -T proxy sh -c 'wc -l < /var/log/demo/access.log' 2>/dev/null | tr -d '[:space:]')
+	assert "EVID-03 three healthcheck intervals with no user traffic change no reading" \
+		"test -n '$_hc1o' && test '$_hc1o' = '$_hc2o' && test '$_hc1n' = '$_hc2n' && test '$_hcl1' = '$_hcl2'"
+
+	# The 9093 redirect listener deliberately does NOT follow the flip (Phase 1
+	# known constraint), so counting it would misreport the cutover. Filter
+	# contract: port == "9092" AND backend != "".
+	status_get "$_st"
+	_r1o=$(jnest "$_st" OLD)
+	_r1n=$(sed -n 's/^    "NEW": \([0-9]*\).*/\1/p' "$_st" | head -1)
+	_r1rows=$(jrows "$_st")
+	curl -sS -o /dev/null http://localhost:9093/
+	sleep 0.5
+	status_get "$_st"
+	_r2o=$(jnest "$_st" OLD)
+	_r2n=$(sed -n 's/^    "NEW": \([0-9]*\).*/\1/p' "$_st" | head -1)
+	_r2rows=$(jrows "$_st")
+	assert "EVID-03 a request to :9093 leaves the counters and rows untouched" \
+		"test '$_r1rows' -gt 0 && test '$_r1o' = '$_r2o' && test '$_r1n' = '$_r2n' && test '$_r1rows' = '$_r2rows'"
+
+	# EVID-03 / concurrency: TWO transitions inside the 8-row window still yield
+	# exactly ONE boundary object — the MOST RECENT — never a list. The backwards
+	# scan is also what absorbs the measured 26-90 ms reload interleave.
+	sh scripts/flip.sh old >/dev/null 2>&1
+	settle_flip old
+	curl -sS -o /dev/null http://localhost:9092/whoami
+	sh scripts/flip.sh new >/dev/null 2>&1
+	settle_flip new
+	manual_flip old
+	curl -sS -o /dev/null http://localhost:9092/whoami
+	sleep 0.4
+	status_get "$_st"
+	_tbcount=$(grep -c '^    "from":' "$_st")
+	_tblist=$(grep -c '^  "boundary": \[' "$_st")
+	_tbto=$(jnest "$_st" to)
+	assert "EVID-03 two transitions in the window yield exactly ONE boundary, the most recent" \
+		"test '$_tbcount' = '1' && test '$_tblist' = '0' && test '$_tbto' = 'OLD'"
+
+	# EVID-01: nginx writes each line with a single write(), but a reader that
+	# opens the file mid-write can still see a partial trailing line.
+	docker compose exec -T proxy sh -c 'printf "{\"t\":\"2026-01-01T00:00:00+00:00\",\"ms\":\"1,\"pa" >> /var/log/demo/access.log' >/dev/null 2>&1
+	sleep 0.4
+	_torncode=$(curl -sS -o /dev/null -w '%{http_code}' http://localhost:9094/api/status)
+	status_get "$_st"
+	_tornrows=$(jrows "$_st")
+	assert "EVID-01 a torn trailing line is skipped silently; /api/status still returns 200" \
+		"test '$_torncode' = '200'"
+	assert "EVID-01 the complete rows preceding the torn line are still returned" \
+		"test '$_tornrows' -gt 0"
+
+	# ---- CUT-05 / D-36: the between-takes reset, all four readings at once ----
+
+	sh scripts/flip.sh old >/dev/null 2>&1
+	settle_flip old
+	sleep 0.4
+	status_get "$_st"
+	_nstate=$(jfield "$_st" state)
+	_nsync=$(jfield "$_st" sync)
+	_no=$(jnest "$_st" OLD)
+	_nn=$(sed -n 's/^    "NEW": \([0-9]*\).*/\1/p' "$_st" | head -1)
+	_nrows=$(jrows "$_st")
+	_nbound=$(grep -c '^  "boundary": null' "$_st")
+	_nsince=$(grep -c '^  "since_flip_s": null' "$_st")
+	assert "CUT-05 flip.sh old resets counters, table, boundary and clock atomically" \
+		"test '$_nstate' = 'NO_TRAFFIC' && test '$_no' = '0' && test '$_nn' = '0' && test '$_nrows' = '0' && test '$_nbound' = '1' && test '$_nsince' = '1'"
+	assert "CUT-05 the reset reports sync AWAITING_FIRST_REQUEST, not a stale IN_SYNC" \
+		"test '$_nsync' = 'AWAITING_FIRST_REQUEST'"
+
+	rm -f "$_st"
 
 	# ---- leave the rig the way the presenter expects to find it ----
 	sh scripts/flip.sh old >/dev/null 2>&1
