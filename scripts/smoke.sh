@@ -1,7 +1,7 @@
 #!/bin/sh
 # scripts/smoke.sh — demo rig smoke tests.
 #
-# Usage: sh scripts/smoke.sh [backends|proxy|redirect|cutover|ssh|all]
+# Usage: sh scripts/smoke.sh [backends|proxy|redirect|cutover|ssh|hostkey|all]
 #   no argument == all
 #
 # POSIX sh only. Deliberately NOT `set -e`: every assertion runs so the
@@ -1910,6 +1910,7 @@ proxy) section_proxy ;;
 redirect) section_redirect ;;
 cutover) section_cutover ;;
 ssh) section_ssh ;;
+hostkey) section_hostkey ;;
 all)
 	section_backends
 	section_proxy
@@ -1918,9 +1919,15 @@ all)
 	# AFTER cutover, deliberately: that section leaves the rig selecting OLD,
 	# which is the state this one expects to find.
 	section_ssh
+	# LAST, and nothing may follow it. It is the most destructive section in the
+	# suite — it flips the selector, regenerates server-new's host keys and
+	# writes the client's trust record — and it restores the rig on the way out
+	# to the state the next thing expects. Same reasoning as ssh-after-cutover,
+	# one step further along.
+	section_hostkey
 	;;
 *)
-	echo "usage: sh scripts/smoke.sh [backends|proxy|redirect|cutover|ssh|all]" >&2
+	echo "usage: sh scripts/smoke.sh [backends|proxy|redirect|cutover|ssh|hostkey|all]" >&2
 	exit 2
 	;;
 esac
