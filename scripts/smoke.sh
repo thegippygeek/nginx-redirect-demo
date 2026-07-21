@@ -809,6 +809,120 @@ section_cutover() {
 
 	rm -f "$_st"
 
+	# ================================================================
+	# UI-SPEC token audit (02-UI-SPEC executor acceptance tests 2, 10, 11)
+	# ================================================================
+	#
+	# Static assertions over status/index.html. They exist because every rule
+	# below is invisible on the machine that breaks it: each one looks correct on
+	# a laptop and fails on the projector, which is the only place it matters and
+	# the last place anyone tests.
+	#
+	# They live in section_cutover rather than in a fifth section because the file
+	# they read is written by the same phase, and a section that could run before
+	# the file exists would pass vacuously.
+
+	# --- typography: exactly 4 sizes, exactly 2 weights ---
+	#
+	# The four sizes are declared once as tokens and referenced everywhere else,
+	# so a fifth size can only enter as a fifth token or as a literal value. Both
+	# are asserted. The root scale hook is the one font-size declaration that is
+	# not a token reference, and it is excluded by name.
+	assert "UI-SPEC 10 exactly 4 distinct font sizes (excluding the root scale hook)" \
+		'test "$(grep -oE "font-size: *[^;}]*" status/index.html | sed "s/font-size: *//" | grep -v "^calc(" | sort -u | wc -l | tr -d "[:space:]")" = "4"'
+	assert "UI-SPEC 10 exactly 4 --fs- token definitions — a fifth is a contract failure" \
+		'test "$(grep -oE "\-\-fs-[a-z]+ *:" status/index.html | sort -u | wc -l | tr -d "[:space:]")" = "4"'
+	assert "UI-SPEC 10 no literal font-size value bypasses the token scale" \
+		'test "$(grep -oE "font-size: *[^;}]*" status/index.html | grep -v "var(--fs-" | grep -cv "calc(100vw / 120)")" = "0"'
+	# Two weights is not a stylistic preference. The system font stack resolves to
+	# a different family per OS, and intermediate weights either synthesise or
+	# snap unpredictably across those families — 400 and 700 are the only cuts
+	# guaranteed real everywhere. A page that looks right on the presenter's Mac
+	# has to look the same on a borrowed Windows laptop.
+	assert "UI-SPEC 10 exactly 2 font weights, and they are 400 and 700" \
+		'test "$(grep -oE "font-weight: *[^;}]*" status/index.html | sed "s/font-weight: *//" | sort -u | tr "\n" " ")" = "400 700 "'
+
+	# --- colour used as fill, never as text or border ---
+	#
+	# #b45309 and #15803d are 5.0:1 against white and compliant as fills behind
+	# white text. As text on the dark ground they fall to roughly 2.7:1 and fail.
+	# Both the raw hexes and the token indirections are checked, because a later
+	# edit is far likelier to write var(--old) than the literal.
+	assert "UI-SPEC colour rule: the accents never appear as a text or border colour" \
+		'test "$(grep -cE "(^|[^-a-zA-Z])(border-)?color[[:space:]]*:[^;}]*(#b45309|#15803d|var\(--old\)|var\(--new\))" status/index.html)" = "0"'
+
+	# --- panel separation carried by the border, not by the fill ---
+	#
+	# The secondary fill sits at 1.6:1 against the ground and is the first thing
+	# heavy projector washout destroys. An implementation relying on the fill
+	# alone looks correct on a laptop and dissolves into one flat field in the
+	# room.
+	assert "UI-SPEC colour rule: the .panel rule carries a 2px hairline border" \
+		'grep -E "^\.panel\{" status/index.html | grep -q "border:2px solid var(--line)"'
+	assert "UI-SPEC colour rule: at least three panels actually use it" \
+		'test "$(grep -c "class=\"[^\"]*panel" status/index.html)" -ge 3'
+
+	# --- the root scale hook, in the one form calc() accepts ---
+	#
+	# calc() permits a length divided by a plain NUMBER, never by a length. The
+	# invalid form is dropped silently, the root size falls back to the browser
+	# default, and the whole rem scale collapses to its reference values — which
+	# still looks correct at 1920 wide. That is exactly what makes it dangerous.
+	assert "UI-SPEC 11 the valid root scale form is present exactly once" \
+		'test "$(grep -c "calc(100vw / 120)" status/index.html)" = "1"'
+	assert "UI-SPEC 11 the invalid divide-by-a-length form is absent" \
+		'test "$(grep -cE "calc\(100vw *\/ *[0-9.]+(px|rem|em|vw|vh)" status/index.html)" = "0"'
+
+	# --- offline: ENV-03 / UI-SPEC 2 ---
+	#
+	# Conference wifi is the assumption this demo refuses to make. The page must
+	# render identically with the network unplugged.
+	assert "UI-SPEC 2 zero hosted fonts and zero CDN references" \
+		'test "$(grep -cE "@font-face|cdn\.|googleapis|gstatic|unpkg|jsdelivr|bootstrapcdn" status/index.html)" = "0"'
+	assert "UI-SPEC 2 zero src/href attributes of any kind — nothing is fetched" \
+		'test "$(grep -cE "(src|href)[[:space:]]*=" status/index.html)" = "0"'
+	# The one absolute URL in the file is the demo host inside the empty-state
+	# copy, which UI-SPEC's copywriting contract mandates verbatim. It is a string
+	# the presenter reads aloud, not an origin the page contacts.
+	assert "UI-SPEC 2 no absolute URL to any origin other than localhost or the demo host" \
+		'test "$(grep -oE "https?://[^ \")]+" status/index.html | grep -vcE "localhost|app\.demo\.test")" = "0"'
+
+	# --- T-02-01: the render discipline cannot be undone by a later edit ---
+	#
+	# A request path is attacker-influenced, travels verbatim through $uri into
+	# the evidence log and onto the projector. textContent is the whole
+	# mitigation, so every markup-parsing sink is asserted absent — not just the
+	# one that happens to be idiomatic today.
+	assert "T-02-01 no markup-parsing assignment sink exists in status/index.html" \
+		'test "$(grep -cE "innerHTML|outerHTML|insertAdjacentHTML|document\.write|createContextualFragment" status/index.html)" = "0"'
+	# One funnel, not a convention. Every log-derived value reaches the DOM
+	# through the single `txt()` helper, so there is exactly one assignment to
+	# audit rather than a habit to trust.
+	assert "T-02-01 exactly one textContent assignment exists — the shared txt() funnel" \
+		'test "$(grep -c "\.textContent *=" status/index.html)" = "1"'
+	assert "T-02-01 the rendered cells actually go through that funnel" \
+		'test "$(grep -o "txt(" status/index.html | wc -l | tr -d "[:space:]")" -ge 10'
+
+	# --- D-22: the hostname, everywhere, in the reserved form ---
+	#
+	# The mDNS variant stalls host name resolution for about five seconds on the
+	# presenter's machine, on stage, with no error. `.test` is reserved by RFC
+	# 6761 precisely so it cannot. No other assertion in this suite would catch a
+	# single stray occurrence.
+	# The label deliberately does not spell the token out: this assertion greps
+	# scripts/, which includes this file, and a literal occurrence here would
+	# make the check report on its own label.
+	assert "D-22 every demo-hostname token in the repo is the reserved .test form" \
+		'test "$(grep -rhoE "app\.demo\.[a-z]*" status/ scripts/ proxy/ Makefile compose.yaml README.md | sort -u | grep -vc "^app\.demo\.test$")" = "0"'
+
+	# --- T-02-16: the repository still never modifies host state ---
+	#
+	# Phase 1's control, re-asserted after Phase 2's additions. The escalation
+	# token may appear in README prose and in `make status`'s printed remediation
+	# line; it may never appear in a recipe position.
+	assert "T-02-16 no executable line in the Makefile, the scripts or compose escalates privilege" \
+		'test "$(grep -v "^[[:space:]]*#" Makefile scripts/flip.sh scripts/smoke.sh compose.yaml | grep "sudo" | grep -vc "echo")" = "0"'
+
 	# ---- leave the rig the way the presenter expects to find it ----
 	sh scripts/flip.sh old >/dev/null 2>&1
 	settle_flip old
