@@ -4,3 +4,7 @@
 **/ssh_host_*
 
 .DS_Store
+
+# Byte-cache from driving status/status.py directly on the host. The
+# container mounts /app read-only, so it can never create this.
+__pycache__/
