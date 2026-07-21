@@ -791,7 +791,11 @@ Mechanical checks the implementation must pass. These are the concrete form of t
     `getComputedStyle(document.documentElement).fontSize`. It must be `10.666...px`, not `16px`.
     A flat `16px` means the `calc()` was dropped as invalid and the rem scale is dead.
 12. **Fresh-take boundary test.** Evidence reset, issue 2 requests, flip. At the moment of the flip
-    the boundary renders at row index 0 with the 2 pre-flip rows beneath it and no blank filler rows.
+    the boundary renders at the lowest index the formula allows, with the 2 pre-flip rows beneath it
+    and no blank filler rows. **Observability note (verified 2026-07-21):** the implementation detects
+    a boundary from a backend transition between adjacent log rows, so a boundary cannot exist before
+    a post-flip row does. Index 0 is arithmetically correct but never renderable; the first observable
+    value is 1, migrating 1 → 2 → 3. Assert 1, not 0.
     Each subsequent request moves it down one — index 1, 2, then 3 — where it pins.
 13. **Partial-failure test.** Make `active-backend.conf` unreadable while the access log stays
     healthy. The page goes **fully** UNAVAILABLE — it does not render a live traffic reading beside a
