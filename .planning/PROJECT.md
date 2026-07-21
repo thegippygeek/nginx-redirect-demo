@@ -20,12 +20,12 @@ A live, on-stage flip of the nginx upstream from old to new where the client kee
 - ✓ Cutover is performed live by editing the nginx upstream and reloading — no client-side change required — Phase 2
 - ✓ nginx access logs are viewable live, showing which upstream served each request — Phase 2
 - ✓ A status page shows current routing state and recent requests — Phase 2
+- ✓ nginx `stream` module proxies raw TCP on port 22 to a backend SSH server — Phase 3
+- ✓ Each backend self-identifies as OLD or NEW in its SSH login banner — Phase 3
+- ✓ An automated verify script curls HTTP and connects over SSH, asserting which backend answered — Phase 3
 
 ### Active
 
-- [ ] nginx `stream` module proxies raw TCP on port 22 to a backend SSH server
-- [ ] Each backend self-identifies as OLD or NEW in its SSH login banner
-- [ ] An automated verify script curls HTTP and connects over SSH, asserting which backend answered
 - [ ] The SSH host-key mismatch failure (`REMOTE HOST IDENTIFICATION HAS CHANGED`) is staged deliberately, then fixed by transferring host keys to the new server
 - [ ] A written step-by-step walkthrough script documents the live narrative: show old → flip → show new → SSH gotcha → fix
 
@@ -84,4 +84,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-07-21 after Phase 2*
+*Last updated: 2026-07-21 after Phase 3*
