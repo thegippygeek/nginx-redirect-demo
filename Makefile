@@ -9,10 +9,18 @@
 # target vocabulary is stable from the start; their recipes arrive with the
 # plans that own them.
 
-.PHONY: up down status logs test reset contrast reload check
+.PHONY: up down status logs logs-demo test reset contrast reload check flip flip-old flip-new clear-evidence
 
+# The evidence volume survives `docker compose down` and is removed only by
+# `down -v`, so without the truncation below a down+up cycle would resume a
+# previous take's counters mid-count — exactly the "looks second-hand" failure
+# D-36 exists to prevent. Raw `docker compose up -d --wait` still works
+# standalone (D-20) and simply inherits the prior log; `make` is the presenter
+# surface, and `make clear-evidence` is the explicit lever.
 up:
 	docker compose up -d --build --wait
+	@docker compose exec -T proxy sh -c ': > /var/log/demo/access.log'
+	@echo "evidence log cleared — this take starts from zero"
 	@$(MAKE) status
 
 down:
@@ -24,8 +32,28 @@ status:
 
 check: status
 
+# D-30/D-32: the raw view, all three services. Seeing the request ARRIVE at the
+# backend is what proves it truly landed there rather than being served from
+# somewhere upstream. The extra noise is the price of that proof.
 logs:
-	docker compose logs -f proxy
+	docker compose logs -f proxy server-old server-new
+
+# D-31: the same log, made legible from the back of a room. Timestamps come from
+# Docker (-t), so log_format demo is not touched at all — it stays realistic,
+# which is what supports the "this is what you'd actually see in production"
+# claim, and two Phase 1 assertions grep it.
+#
+# Matched by REGEX on the backend= token, never by field position: indices shift
+# by one when -t is added and by two more under the `proxy-1  |` service prefix,
+# and D-32 requires that prefix. Colour is a terminal concern — it deliberately
+# does not go into a config file the presenter shows on screen.
+#
+# Note the doubled $$ — Make consumes a single $ (RESEARCH Pitfall 9).
+logs-demo:
+	docker compose logs -f -t proxy server-old server-new | awk '\
+	  /backend=NEW/ { printf "\033[1;97;42m NEW \033[0m %s\n", $$0; next } \
+	  /backend=OLD/ { printf "\033[1;97;43m OLD \033[0m %s\n", $$0; next } \
+	  { print }'
 
 test:
 	sh scripts/smoke.sh
@@ -71,3 +99,26 @@ reload:
 	docker compose exec proxy nginx -t
 	docker compose exec proxy nginx -s reload
 	@sleep 1 && curl -fsS http://localhost:9092/whoami
+
+# D-33: both command shapes ship. `flip` toggles whatever is currently selected
+# and is the memorable money-shot command; the named targets are unfumbleable
+# when you have lost your place on stage.
+#
+# The recipe body lives in the script, not here: the sequence needs a retry loop
+# and early exits, and Make 3.81 without a one-shell directive runs every recipe
+# line in its own shell.
+flip:
+	@sh scripts/flip.sh toggle
+
+flip-old:
+	@sh scripts/flip.sh old
+
+flip-new:
+	@sh scripts/flip.sh new
+
+# D-36, as an explicit lever. Truncate, never unlink: nginx holds the descriptor
+# and would keep writing into an unlinked inode. Issued into the PROXY
+# container — the status service's mount is read-only by design.
+clear-evidence:
+	@docker compose exec -T proxy sh -c ': > /var/log/demo/access.log'
+	@echo "evidence log cleared — the next take starts from zero"

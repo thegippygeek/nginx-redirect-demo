@@ -128,6 +128,104 @@ is its home.
 
 ---
 
+## The cutover (CUT-01/02/03/05 — the money shot)
+
+The flip changes **one word** in `proxy/active-backend.conf` and reloads nginx.
+Nothing restarts, nothing on the client side changes, and the identical command
+now gets a different box.
+
+### Three commands, one mechanism
+
+```bash
+make flip-new     # cut over to the New box
+make flip-old     # cut back — this is also the between-takes reset
+make flip         # toggle whatever is currently selected
+```
+
+`make flip` is the memorable one and the fastest to type. The named targets are
+the unfumbleable ones: if you have lost your place on stage, `make flip-new` does
+what it says regardless of where the rig currently is (D-33).
+
+Each one prints the diff before it reloads. **That diff is what the audience
+watches change:**
+
+```diff
+--- proxy/active-backend.conf (before)
++++ proxy/active-backend.conf (after)
+@@ -1,5 +1,5 @@
+ map $server_port $active_backend {
+-    default old;
++    default new;
+ }
+```
+
+Then it validates the config, reloads gracefully, proves the reload actually
+landed by asking the running config what it now selects, waits for the worker
+handover, and issues one confirming request:
+
+```
+curl -fsS http://localhost:9092/whoami  ->  NEW server-new
+```
+
+Run the same command from anywhere — the host, the `client` container, a
+browser — and the URL is the one you always typed. That is the whole claim.
+
+### The more dramatic option: edit it live
+
+If you would rather have the file open on screen and change the word by hand,
+do — then `make reload`. The file is five lines, two of them comments, and the
+edit is one word. Phase 1's `$backend_is_valid` guard exists precisely for this
+path: a typo'd selector still passes `nginx -t` and still reloads cleanly, and
+without the guard it would 502 every request mid-cutover. With it you get a
+legible 503 that names the offending value on screen (D-34).
+
+### The flip refuses when a backend is down
+
+```
+REFUSING TO FLIP: server-new is not answering /healthz.
+  nginx parses BOTH upstream blocks on every reload, so this would
+  fail in either direction and the running config would silently
+  stay put. proxy/active-backend.conf has NOT been modified.
+```
+
+This is not defensiveness for its own sake. nginx resolves upstream hostnames at
+config-parse time and parses **both** `upstream` blocks on every reload, so one
+dead backend blocks the flip in *both* directions — and a reload whose config
+fails to load leaves nginx quietly serving the previous configuration. The gate
+runs before the file is touched, so a refusal leaves the repo byte-identical
+rather than claiming a cutover that never happened (D-35).
+
+### Watching it happen
+
+```bash
+make logs         # raw, all three services — the authentic view
+make logs-demo    # the same log, colour-labelled OLD/NEW, readable from the back
+```
+
+Both tail the proxy **and** both backends (D-32). Seeing the request arrive at
+`server-new` is what proves it truly landed there rather than being answered
+from somewhere upstream. `make logs` is the one for a technical audience;
+`make logs-demo` prefixes a colour-coded `OLD`/`NEW` label so the moment the
+flip lands is visible across a room.
+
+### Between takes
+
+```bash
+make flip-old         # flips back AND clears the evidence
+make clear-evidence   # clears the evidence without flipping
+```
+
+`make flip-old` is the between-takes reset (D-36). It puts the rig back on OLD
+and truncates the evidence log, so the next take's counters, request table and
+since-flip clock all start from zero — nothing looks second-hand. **No container
+is restarted**, which is the point CUT-05 exists to make.
+
+Phase 1's `make reset` is still there and still does a full teardown, but it is
+not the between-takes path: using it would undercut the "no teardown needed"
+claim the cutover is demonstrating.
+
+---
+
 ## What "the client never changes" means (HTTP-02 — the verification contract)
 
 This is the claim the whole demo rests on, and it is easy to test against the
@@ -168,7 +266,12 @@ docker compose exec client curl -sS http://app.demo.test:9092/whoami
 | `make down` | `docker compose down` — stops the rig, keeps the images |
 | `make status` | service/status/ports table, plus an `/etc/hosts` check with the exact fix line if missing |
 | `make check` | alias for `status` |
-| `make logs` | live tail of the proxy access log — this is where `backend=OLD` flips to `backend=NEW` |
+| `make logs` | live tail of the proxy **and both backends** — this is where `backend=OLD` flips to `backend=NEW` |
+| `make logs-demo` | the same tail, colour-labelled OLD/NEW and timestamped, readable from the back of a room |
+| `make flip` | toggle the active backend — gate, rewrite, diff, validate, reload, prove, confirm |
+| `make flip-new` | cut over to the New box explicitly |
+| `make flip-old` | cut back to the Old box **and clear the evidence** — the between-takes reset |
+| `make clear-evidence` | truncate the evidence log without flipping |
 | `make test` | the full smoke suite (`sh scripts/smoke.sh`) |
 | `make contrast` | the proxied-vs-redirected side-by-side, two labelled lines |
 | `make reload` | `nginx -t`, then a graceful `nginx -s reload`, then a verifying request — never a container restart |
@@ -206,6 +309,7 @@ runs a single section if you want a faster loop.
 ├── client/
 │   └── Dockerfile                # the in-network command source (curl, ssh)
 └── scripts/
+    ├── flip.sh                   # the cutover: gate, rewrite, validate, reload, prove
     └── smoke.sh                  # every mechanically checkable requirement
 ```
 
