@@ -1,7 +1,7 @@
 #!/bin/sh
 # scripts/smoke.sh — demo rig smoke tests.
 #
-# Usage: sh scripts/smoke.sh [backends|proxy|redirect|cutover|ssh|hostkey|all]
+# Usage: sh scripts/smoke.sh [backends|proxy|redirect|cutover|ssh|walkthrough|hostkey|all]
 #   no argument == all
 #
 # POSIX sh only. Deliberately NOT `set -e`: every assertion runs so the
@@ -1609,6 +1609,252 @@ section_ssh() {
 		'test "$(grep -v "^[[:space:]]*#" scripts/verify.sh | grep -cE "t[i]meout [0-9]+ s[s]h")" -ge 1'
 }
 
+# ============ WALKTHROUGH.md, as an executable contract (Phase 4, WALK-01..03) =
+#
+# WHAT THIS SECTION PROVES: that WALKTHROUGH.md is SELF-CONTAINED and
+# EXECUTABLE. Every command in it is a real make target or a real binary, every
+# repository path in it resolves, no step meets a prerequisite it was not given,
+# and every step carries all three blocks in the fixed order.
+#
+# WHAT THIS SECTION DOES NOT PROVE, AND CANNOT: that the document is
+# COMPREHENSIBLE. Whether the takeaway prose lands with a room of humans — the
+# claim ROADMAP criterion 5 actually makes — is a judgement no assertion can
+# make. Passing every assertion below is NOT evidence for criterion 5. That
+# criterion is carried by a blocking human cold read and by nothing here. Anyone
+# tempted to cite this section as covering it should read 04-VALIDATION.md
+# "On ROADMAP criterion 5" first; the substitution is the exact failure T-04-16
+# exists to prevent.
+#
+# It is NON-DESTRUCTIVE: it reads the document, the Makefile and the filesystem,
+# executes nothing it extracts, and changes no rig state. It therefore runs
+# BEFORE section_hostkey in the `all` chain — the destructive section stays last.
+#
+# It lints by EXTRACTION, never against a hand-maintained list. A list of
+# expected commands living beside the document is a second source of truth that
+# drifts from the first; pulling the commands and paths out of the document
+# itself means the lint cannot describe a document that no longer exists.
+#
+# Every extracted set is asserted NON-EMPTY before anything is counted. A
+# renamed heading or a changed block label would otherwise silently reduce each
+# check below to a check over zero items, and a check over zero items is
+# indistinguishable from one that passes (T-04-17).
+section_walkthrough() {
+	echo "--- walkthrough ---"
+
+	WT=WALKTHROUGH.md
+	WT_TMP=$(mktemp -d)
+	export WT WT_TMP
+
+	# ---- extraction ------------------------------------------------------
+	#
+	# Commands come from fenced ```bash blocks only. Plan 04-03 fenced every
+	# Run block as bash and every transcribed output block as plain ```, so the
+	# language tag is what separates "things to type" from "things to see".
+	awk '/^```bash$/{i=1;next} /^```/{i=0;next} i' "$WT" 2>/dev/null |
+		grep -v '^[[:space:]]*$' >"$WT_TMP/cmds"
+
+	grep '^make ' "$WT_TMP/cmds" | awk '{print $2}' | sort -u >"$WT_TMP/targets"
+	grep -v '^make ' "$WT_TMP/cmds" | awk '{print $1}' | sort -u >"$WT_TMP/bins"
+
+	# Repository-relative paths only. The leading character class excludes a
+	# slash on purpose: /etc/hosts and /root/.ssh/known_hosts are the CLIENT's
+	# and the HOST's paths, not this repository's, and asserting them here
+	# would make the suite fail on a machine that has not done the one-time
+	# hosts step — a false red that teaches people to ignore the suite.
+	grep -o '`[A-Za-z0-9_.-][A-Za-z0-9_./-]*`' "$WT" 2>/dev/null | tr -d '`' |
+		grep -E '\.(md|sh|conf|yaml)$' | sort -u >"$WT_TMP/paths"
+
+	WT_CMD_COUNT=$(grep -c . "$WT_TMP/cmds")
+	WT_PATH_COUNT=$(grep -c . "$WT_TMP/paths")
+
+	# The phony list is the single declaration of the target vocabulary.
+	WT_PHONY=$(sed -n 's/^\.PHONY:[[:space:]]*//p' Makefile)
+
+	WT_BAD_TARGET=0
+	WT_BAD_TARGET_NAMES=""
+	for _t in $(cat "$WT_TMP/targets"); do
+		case " $WT_PHONY " in
+		*" $_t "*) ;;
+		*)
+			WT_BAD_TARGET=$((WT_BAD_TARGET + 1))
+			WT_BAD_TARGET_NAMES="$WT_BAD_TARGET_NAMES $_t"
+			;;
+		esac
+	done
+
+	WT_BAD_BIN=0
+	for _b in $(cat "$WT_TMP/bins"); do
+		command -v "$_b" >/dev/null 2>&1 || WT_BAD_BIN=$((WT_BAD_BIN + 1))
+	done
+
+	WT_BAD_PATH=0
+	WT_BAD_PATH_NAMES=""
+	for _p in $(cat "$WT_TMP/paths"); do
+		if [ ! -e "$_p" ]; then
+			WT_BAD_PATH=$((WT_BAD_PATH + 1))
+			WT_BAD_PATH_NAMES="$WT_BAD_PATH_NAMES $_p"
+		fi
+	done
+
+	# A command block containing an ellipsis or an angle-bracketed placeholder
+	# is not runnable verbatim, which is the whole claim of part 1.
+	WT_PLACEHOLDER=$(grep -cE '\.\.\.|<[A-Za-z]|TODO|FIXME|PLACEHOLDER' "$WT_TMP/cmds")
+
+	# ---- structure -------------------------------------------------------
+	WT_STEPS=$(grep -cE '^### [0-9]+\.' "$WT" 2>/dev/null)
+	WT_RUN=$(grep -c '^\*\*Run\*\*' "$WT" 2>/dev/null)
+	WT_EXPECT=$(grep -c '^\*\*Expect\*\*' "$WT" 2>/dev/null)
+	WT_SAY=$(grep -c '^\*\*Say\*\*' "$WT" 2>/dev/null)
+
+	# Per-step block ORDER. Counting alone would accept a step carrying two Says
+	# and no Expect while its neighbour carried the missing one, so the sequence
+	# under each heading is compared against the literal string RES.
+	WT_ORDER_BAD=$(awk '
+		/^### [0-9]+\./ { if (instep && seq != "RES") bad++; seq=""; instep=1; next }
+		/^## /          { if (instep && seq != "RES") bad++; seq=""; instep=0 }
+		instep && /^\*\*Run\*\*/    { seq = seq "R" }
+		instep && /^\*\*Expect\*\*/ { seq = seq "E" }
+		instep && /^\*\*Say\*\*/    { seq = seq "S" }
+		END { if (instep && seq != "RES") bad++; print bad+0 }
+	' "$WT" 2>/dev/null)
+
+	WT_NUMSEQ=$(grep -E '^### [0-9]+\.' "$WT" 2>/dev/null |
+		sed -E 's/^### ([0-9]+)\..*/\1/' | tr '\n' ' ')
+
+	# D-55, the fixed narrative order. Matched on a keyword per heading rather
+	# than on the heading text, so rewording a heading is allowed and REORDERING
+	# one is not — reordering is the edit that would confuse a presenter on
+	# stage, and it is the one this turns red.
+	WT_NARRATIVE=$(grep -E '^### [0-9]+\.' "$WT" 2>/dev/null | tr '[:upper:]' '[:lower:]' | awk '
+		/show old/          { printf "show-old ";          next }
+		/redirect contrast/ { printf "redirect-contrast "; next }
+		/prime/             { printf "prime ";             next }
+		/the flip/          { printf "flip ";              next }
+		/gotcha/            { printf "gotcha ";            next }
+		/wrong fix/         { printf "wrong-fix ";         next }
+		/right fix/         { printf "right-fix ";         next }
+		/reset/             { printf "reset ";             next }
+		                    { printf "UNKNOWN " }
+	')
+
+	# ---- prerequisite closure -------------------------------------------
+	#
+	# A presenter reading top to bottom must never meet a target they were not
+	# given. The introduced set starts as the pre-flight checklist's targets and
+	# grows by each step's OWN Run-block targets as the walk proceeds; every
+	# target NAMED anywhere in a step — heading, Run block, Say block or the
+	# italic notes — must already be in it.
+	WT_INTRO=$(awk '/^## Pre-flight checklist/{p=1;next} /^## The demo/{p=0} p' "$WT" 2>/dev/null |
+		grep -o 'make [a-z][a-z-]*' | awk '{print $2}' | sort -u | tr '\n' ' ')
+	WT_PREFLIGHT_COUNT=$(printf '%s\n' "$WT_INTRO" | wc -w | tr -d ' ')
+	WT_PREREQ_BAD=0
+	WT_PREREQ_NAMES=""
+	_n=1
+	while [ "$_n" -le "${WT_STEPS:-0}" ]; do
+		_reg=$(awk -v n="$_n" 'BEGIN{re="^### " n "\\."} $0 ~ re {p=1;print;next} /^#+ /{p=0} p' "$WT")
+		_used=$(printf '%s\n' "$_reg" | grep -o 'make [a-z][a-z-]*' | awk '{print $2}' | sort -u)
+		_runt=$(printf '%s\n' "$_reg" | awk '/^```bash$/{i=1;next} /^```/{i=0;next} i' |
+			grep '^make ' | awk '{print $2}' | sort -u | tr '\n' ' ')
+		for _u in $_used; do
+			case " $WT_INTRO $_runt " in
+			*" $_u "*) ;;
+			*)
+				WT_PREREQ_BAD=$((WT_PREREQ_BAD + 1))
+				WT_PREREQ_NAMES="$WT_PREREQ_NAMES step$_n:$_u"
+				;;
+			esac
+		done
+		WT_INTRO="$WT_INTRO $_runt"
+		_n=$((_n + 1))
+	done
+
+	# ---- traps (D-57) ----------------------------------------------------
+	awk '/^## Known traps/{p=1;next} p' "$WT" 2>/dev/null >"$WT_TMP/traps"
+	WT_TRAP_LINES=$(grep -c . "$WT_TMP/traps")
+
+	export WT_CMD_COUNT WT_PATH_COUNT WT_BAD_TARGET WT_BAD_TARGET_NAMES WT_BAD_BIN
+	export WT_BAD_PATH WT_BAD_PATH_NAMES WT_PLACEHOLDER
+	export WT_STEPS WT_RUN WT_EXPECT WT_SAY WT_ORDER_BAD WT_NUMSEQ WT_NARRATIVE
+	export WT_PREREQ_BAD WT_PREREQ_NAMES WT_PREFLIGHT_COUNT WT_TRAP_LINES
+
+	# ---- part 0: the document is there at all ---------------------------
+	assert "WALK-01 WALKTHROUGH.md exists at the repository root" \
+		'test -f "$WT"'
+	assert "WALK-01 the document carries both a pre-flight checklist and a traps section" \
+		'grep -q "^## Pre-flight checklist" "$WT" && grep -q "^## Known traps" "$WT"'
+
+	# ---- non-vacuity, asserted BEFORE anything is counted (T-04-17) ------
+	assert "WALK-02 non-vacuity: the extracted command set is non-empty" \
+		'test "$WT_CMD_COUNT" -ge 8'
+	assert "WALK-02 non-vacuity: the extracted path set is non-empty" \
+		'test "$WT_PATH_COUNT" -ge 3'
+	assert "WALK-02 non-vacuity: the pre-flight checklist names at least three make targets" \
+		'test "$WT_PREFLIGHT_COUNT" -ge 3'
+	assert "WALK-03 non-vacuity: the traps section is a non-empty region" \
+		'test "$WT_TRAP_LINES" -ge 10'
+
+	# ---- part 1: every command is runnable verbatim ----------------------
+	assert "WALK-02 every make target in a command block is declared in the Makefile phony list" \
+		'test "$WT_BAD_TARGET" = "0" || { echo "undeclared:$WT_BAD_TARGET_NAMES"; false; }'
+	assert "WALK-02 every non-make command in a command block is a binary that exists" \
+		'test "$WT_BAD_BIN" = "0"'
+	assert "WALK-02 no command block carries an ellipsis, a placeholder or a TODO" \
+		'test "$WT_PLACEHOLDER" = "0"'
+
+	# ---- part 2: every referenced path exists ----------------------------
+	assert "WALK-02 every repository path the document names resolves to a real file" \
+		'test "$WT_BAD_PATH" = "0" || { echo "missing:$WT_BAD_PATH_NAMES"; false; }'
+
+	# ---- part 3: no undefined prerequisite -------------------------------
+	assert "WALK-02 no step meets a make target it was not given by pre-flight or an earlier step" \
+		'test "$WT_PREREQ_BAD" = "0" || { echo "unintroduced:$WT_PREREQ_NAMES"; false; }'
+
+	# ---- part 4: structural completeness and narrative order -------------
+	assert "WALK-01 the document carries eight numbered step headings" \
+		'test "$WT_STEPS" = "8"'
+	assert "WALK-01 the step headings are numbered 1..8 in ascending order" \
+		'test "$WT_NUMSEQ" = "1 2 3 4 5 6 7 8 "'
+	assert "WALK-01 the step headings appear in the fixed D-55 narrative order" \
+		'test "$WT_NARRATIVE" = "show-old redirect-contrast prime flip gotcha wrong-fix right-fix reset "'
+	assert "WALK-03 every step carries a Run block — one per heading, none orphaned" \
+		'test "$WT_RUN" = "$WT_STEPS"'
+	assert "WALK-03 every step carries an Expect block — one per heading, none orphaned" \
+		'test "$WT_EXPECT" = "$WT_STEPS"'
+	assert "WALK-03 every step carries a Say block — one per heading, none orphaned" \
+		'test "$WT_SAY" = "$WT_STEPS"'
+	assert "WALK-03 within every step the three blocks appear in the fixed order Run, Expect, Say (D-54)" \
+		'test "$WT_ORDER_BAD" = "0"'
+
+	# ---- the five D-57 traps, each asserted present by name ---------------
+	assert "WALK-03 trap: the browser caches the 301 and beat 2 needs an incognito window (D-57)" \
+		'grep -qi "incognito" "$WT_TMP/traps"'
+	assert "WALK-03 trap: SSH runs from the client container, and port 22 is not published (D-57)" \
+		'grep -q "client" "$WT_TMP/traps" && grep -q "22" "$WT_TMP/traps"'
+	assert "WALK-03 trap: the redirect port does not follow the flip (D-57)" \
+		'grep -q "9093" "$WT_TMP/traps"'
+	assert "WALK-03 trap: make reset is the documented re-arm path (D-57)" \
+		'grep -q "make reset" "$WT_TMP/traps"'
+	assert "WALK-03 trap: make verify is structurally blind to host keys (D-57)" \
+		'grep -q "make verify" "$WT_TMP/traps"'
+
+	# ---- guards over this section's own text -----------------------------
+	#
+	# Same discipline as section_ssh's and section_hostkey's feet: the extraction
+	# range is asserted to bind to a non-empty region, because if the anchor ever
+	# stopped matching every region-scoped check would pass over zero lines.
+	assert "WALK-01 guard: the extraction range binds to a non-empty region" \
+		'test "$(awk "/^section_[w]alkthrough\(\) \{/,/^\}/" scripts/smoke.sh | grep -c .)" -gt 40'
+
+	# This section must stay a READER. It is the one place in the suite that
+	# handles text pulled out of a document, and executing that text would turn
+	# a documentation edit into arbitrary command execution (T-04-19). The
+	# literals are bracket-escaped so this guard cannot fail on its own source.
+	assert "WALK-02 guard: no extracted command is ever executed by this section" \
+		'test "$(awk "/^section_[w]alkthrough\(\) \{/,/^\}/" scripts/smoke.sh | grep -v "^[[:space:]]*#" | grep -cE "e[v]al |s[h] .WT_TMP|x[a]rgs")" = "0"'
+
+	rm -rf "$WT_TMP"
+}
+
 # ============ the host-key gotcha, end to end (Phase 4, KEY-01..KEY-04) =====
 #
 # The five beats of the demo's central narrative, run FOR REAL against the live
@@ -1910,6 +2156,7 @@ proxy) section_proxy ;;
 redirect) section_redirect ;;
 cutover) section_cutover ;;
 ssh) section_ssh ;;
+walkthrough) section_walkthrough ;;
 hostkey) section_hostkey ;;
 all)
 	section_backends
@@ -1919,6 +2166,10 @@ all)
 	# AFTER cutover, deliberately: that section leaves the rig selecting OLD,
 	# which is the state this one expects to find.
 	section_ssh
+	# Before the destructive section, deliberately: this one is a pure reader —
+	# it touches no rig state and executes nothing it extracts — so it costs
+	# nothing to run early and its failures arrive before the rig is disturbed.
+	section_walkthrough
 	# LAST, and nothing may follow it. It is the most destructive section in the
 	# suite — it flips the selector, regenerates server-new's host keys and
 	# writes the client's trust record — and it restores the rig on the way out
@@ -1927,7 +2178,7 @@ all)
 	section_hostkey
 	;;
 *)
-	echo "usage: sh scripts/smoke.sh [backends|proxy|redirect|cutover|ssh|hostkey|all]" >&2
+	echo "usage: sh scripts/smoke.sh [backends|proxy|redirect|cutover|ssh|walkthrough|hostkey|all]" >&2
 	exit 2
 	;;
 esac
