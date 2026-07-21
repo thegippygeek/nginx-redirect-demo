@@ -982,6 +982,62 @@ section_cutover() {
 #
 # This section is NON-DESTRUCTIVE — it neither rewrites the selector nor stops a
 # container — so unlike guard_check() and section_cutover() it installs no trap.
+# The selector as it stands on disk, read exactly the way flip.sh reads it, so
+# the two cannot disagree about what "active" means.
+#
+# Assertions cannot call this directly: assert runs its condition through a
+# fresh `sh -c`, which inherits exported VARIABLES but not shell functions. The
+# section calls it and exports the result — the same reason SSH_OPTS is a
+# variable rather than a helper.
+selector_now() {
+	sed -n 's/^[[:space:]]*default[[:space:]][[:space:]]*\([A-Za-z0-9_.-][A-Za-z0-9_.-]*\)[[:space:]]*;.*/\1/p' proxy/active-backend.conf | head -1
+}
+
+# ACTIVE_SEL is the raw word in the shared file; ACTIVE_LABEL is the uppercase
+# form all three identity surfaces render. Both exported, per the note above.
+set_active() {
+	ACTIVE_SEL=$(selector_now)
+	case "$ACTIVE_SEL" in
+	old) ACTIVE_LABEL=OLD ;;
+	new) ACTIVE_LABEL=NEW ;;
+	*) ACTIVE_LABEL="?" ;;
+	esac
+	export ACTIVE_SEL ACTIVE_LABEL
+}
+
+# The auth-free routing oracle (RESEARCH Q8): the ed25519 host key presented at
+# a name, fingerprinted. It needs no credential, takes about a tenth of a
+# second, and is orthogonal to the banner — so a banner bug and a routing bug
+# cannot mask one another.
+keyscan_fp() {
+	docker compose exec -T client sh -c "ssh-keyscan -t ed25519 $1 2>/dev/null | ssh-keygen -lf -" 2>/dev/null | awk '{print $2}' | head -1
+}
+
+# The same reading taken from the backend container itself, for comparison.
+hostkey_fp() {
+	docker compose exec -T "$1" ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub 2>/dev/null | awk '{print $2}' | head -1
+}
+
+# section_ssh's proxied group REWRITES the selector — the CUT-04 and D-40
+# assertions flip the rig on purpose — so it carries the same trap-based restore
+# discipline guard_check() and restore_flip_state() do. Every section in this
+# suite must leave the rig selecting `old`, including an interrupted one.
+restore_ssh_state() {
+	_sshbak=$(mktemp)
+	cp proxy/active-backend.conf "$_sshbak"
+	trap 'cp "$_sshbak" proxy/active-backend.conf; docker compose exec -T proxy nginx -s reload >/dev/null 2>&1; rm -f "$_sshbak"; exit 1' INT TERM
+	trap 'cp "$_sshbak" proxy/active-backend.conf; docker compose exec -T proxy nginx -s reload >/dev/null 2>&1; rm -f "$_sshbak"' EXIT
+}
+
+# Clears what restore_ssh_state installed, once the section has put the rig back
+# on `old` under its own power. Mirrors finish_flip_state().
+finish_ssh_state() {
+	cp "$_sshbak" proxy/active-backend.conf
+	docker compose exec -T proxy nginx -s reload >/dev/null 2>&1
+	trap - EXIT INT TERM
+	rm -f "$_sshbak"
+}
+
 section_ssh() {
 	echo "--- ssh ---"
 
@@ -1160,6 +1216,209 @@ section_ssh() {
 		'test "$(docker compose exec -T server-old stat -c "%a %U" /keys/authorized_keys | tr -d "\r")" = "644 root"'
 	assert "T-03-05 server-new /keys/authorized_keys is mode 644 owned by root" \
 		'test "$(docker compose exec -T server-new stat -c "%a %U" /keys/authorized_keys | tr -d "\r")" = "644 root"'
+
+	# ================= the proxied hop (Plan 03-02) =========================
+	#
+	# Everything below goes through app.demo.test:22 — the proxy — rather than
+	# naming a backend. Plan 01 made SSH into a named backend work; this group is
+	# the presenter no longer naming the backend.
+	#
+	# The group flips the rig, so it installs the restore trap first.
+	restore_ssh_state
+
+	sh scripts/flip.sh old >/dev/null 2>&1
+	settle_flip old
+	set_active
+
+	# ---- SSH-01: the listener ----
+	#
+	# The IPv4 LOOPBACK LITERAL, never the name `localhost`, and this is not
+	# cosmetic. A stream-context `listen 22;` binds the IPv4 wildcard only
+	# (0.0.0.0:22), while sshd binds both address families — which is exactly why
+	# the `nc -z localhost 22` idiom in section_backends is correct for sshd and
+	# would produce a FALSE FAILURE if copied here: busybox nc resolves the name
+	# to ::1 first and does not retry the next family. compose.yaml already
+	# documents this same root cause for the status service's busybox wget
+	# healthcheck; this is its second occurrence in the rig.
+	assert "SSH-01 the proxy itself listens on :22 (IPv4 loopback literal)" \
+		'docker compose exec -T proxy nc -z 127.0.0.1 22'
+
+	# ---- SSH-01: end to end, with NO port flag ----
+	#
+	# `demo@app.demo.test` and nothing else. The absence of a port flag IS the
+	# D-37 claim being exercised rather than merely stated: inside the demo
+	# network the proxy genuinely listens on 22, so "ssh on port 22" is literally
+	# true and the presenter's command needs no `-p`.
+	assert "SSH-01 client -> app.demo.test lands on the selected backend, no port flag" \
+		'out=$(docker compose exec -T client timeout 10 ssh $SSH_OPTS demo@app.demo.test hostname 2>&1)
+		 rc=$?
+		 test "$rc" -eq 0 && printf "%s\n" "$out" | grep -qx "server-$ACTIVE_SEL"'
+
+	# ---- SSH-02: the mechanism is a stream block, not an HTTP trick ----
+	#
+	# The region is extracted with an awk range anchored on a column-zero opening
+	# line and a column-zero closing brace. A range that fails to bind yields
+	# zero lines and every negative check over it would pass VACUOUSLY, so the
+	# range is asserted non-empty first — the same discipline the guards at the
+	# foot of this section use.
+	assert "SSH-02 proxy/nginx.conf carries a top-level stream block" \
+		'grep -qE "^stream[[:space:]]*\{" proxy/nginx.conf'
+	assert "SSH-02 the stream region binds to a non-empty range" \
+		'test "$(awk "/^stream[[:space:]]*\{/,/^\}/" proxy/nginx.conf | grep -c .)" -gt 5'
+	assert "SSH-02 the stream region proxy_passes the shared selector variable" \
+		'awk "/^stream[[:space:]]*\{/,/^\}/" proxy/nginx.conf | grep -v "^[[:space:]]*#" | grep -qE "proxy_pass[[:space:]]+.active_backend;"'
+	assert "SSH-02 the stream region listens on 22" \
+		'awk "/^stream[[:space:]]*\{/,/^\}/" proxy/nginx.conf | grep -v "^[[:space:]]*#" | grep -qE "listen[[:space:]]+22;"'
+
+	# ---- SSH-02 / D-39: one file, one word, both protocols ----
+	#
+	# The mechanical form of the headline claim, in two halves. With comments
+	# stripped the shared include path appears exactly TWICE — once per context,
+	# the same path both times, because a map is valid in both contexts while an
+	# upstream is not shareable between them (which is why D-13 put the SELECTOR
+	# rather than the TARGET in the shared file). And the file itself has not
+	# grown: still five lines, both presenter comments intact. If either half
+	# drifts, the claim stops being true.
+	assert "SSH-02/D-39 the shared include path appears exactly twice, once per context" \
+		'test "$(grep -v "^[[:space:]]*#" proxy/nginx.conf | grep -c "demo/active-backend.conf")" = "2"'
+	assert "D-39 the shared file is still 5 lines with both presenter comments" \
+		'test "$(wc -l < proxy/active-backend.conf)" -eq 5 && test "$(grep -c "^#" proxy/active-backend.conf)" -eq 2'
+
+	# ---- SSH-03: the banner survives the TCP hop ----
+	#
+	# Plan 01's identity capture, re-run against the PROXIED hostname. The stream
+	# module relays bytes and neither sees nor alters the SSH protocol, so what
+	# arrives here is genuinely the backend's own claim, unmodified — not
+	# something the proxy synthesised. `true` emits no stdout, so the captured
+	# line can only be the pre-auth banner.
+	assert "SSH-03 the identity banner survives the TCP hop unchanged" \
+		'out=$(docker compose exec -T client timeout 10 ssh $SSH_OPTS demo@app.demo.test true 2>&1)
+		 rc=$?
+		 test "$rc" -eq 0 && printf "%s\n" "$out" | grep -qx "$ACTIVE_LABEL server-$ACTIVE_SEL"'
+
+	# ---- D-46: the stream log reaches make logs and NEVER the evidence sink ----
+	#
+	# Asserted POSITIVELY as well as negatively, and the positive half is what
+	# actually pins D-46. A negative-only check would be satisfied by an
+	# access_log retargeted to some OTHER path — a new named volume, say — which
+	# would still take SSH lines off `make logs` entirely.
+	#
+	# The mechanical reason for the negative half: the status service's parser
+	# skips any line that does not parse as JSON, so stream lines written to the
+	# evidence file would be SILENTLY DISCARDED while still growing a file it
+	# rescans on every poll. Invisible, unexplained, and worse than an error.
+	#
+	# Region-scoped deliberately — the http block legitimately writes to that
+	# path, so a file-wide check would be unsatisfiable.
+	assert "D-46 the stream region declares exactly one access_log" \
+		'test "$(awk "/^stream[[:space:]]*\{/,/^\}/" proxy/nginx.conf | grep -v "^[[:space:]]*#" | grep -c "access_log")" = "1"'
+	assert "D-46 that access_log targets the process stdout" \
+		'awk "/^stream[[:space:]]*\{/,/^\}/" proxy/nginx.conf | grep -v "^[[:space:]]*#" | grep -qE "access_log[[:space:]]+/dev/stdout"'
+	assert "D-46 the stream region names no log directory path" \
+		'test "$(awk "/^stream[[:space:]]*\{/,/^\}/" proxy/nginx.conf | grep -v "^[[:space:]]*#" | grep -c "var/log")" = "0"'
+
+	# ---- EVID-01 for SSH: the stream line reaches docker compose logs ----
+	#
+	# Two fields on ONE line, and the pairing is the honesty control. The HTTP
+	# log's identically-named field is the BACKEND asserting its own identity;
+	# this one is the PROXY reporting its own selector, because nginx cannot read
+	# an identity out of an opaque TCP stream. Keeping the raw selector beside it
+	# makes that visible to any reader on the projector.
+	assert "EVID-01 the stream log carries the uppercase label AND the raw selector" \
+		'docker compose exec -T client timeout 10 ssh $SSH_OPTS demo@app.demo.test true >/dev/null 2>&1
+		 sleep 1
+		 docker compose logs proxy | grep -qE "backend=$ACTIVE_LABEL selector=$ACTIVE_SEL"'
+
+	# The coupling to the projector colouring, pinned from BOTH ends so a future
+	# rename of the field cannot silently uncolour SSH lines: the Makefile still
+	# matches this token, and a real stream line still carries it.
+	assert "EVID-01 the stream label token is the one logs-demo's awk colours" \
+		'test "$(grep -c "backend=OLD" Makefile)" -ge 1 && docker compose logs proxy | grep -qE "ssh backend=OLD"'
+
+	# ---- CUT-04: the IDENTICAL command string, held in ONE variable ----
+	#
+	# Stored once and run twice. That is the assertion: CUT-02's claim is that
+	# NOTHING on the client side changed, and a retyped command cannot prove it.
+	_sshcmd='docker compose exec -T client timeout 10 ssh $SSH_OPTS demo@app.demo.test hostname'
+	export CUT04_CMD="$_sshcmd"
+	CUT04_BEFORE=$(sh -c "$_sshcmd" 2>&1)
+	export CUT04_BEFORE
+
+	assert "CUT-04 the stored command names the proxied host and carries no port flag" \
+		'printf "%s\n" "$CUT04_CMD" | grep -qE "demo@app[.]demo[.]test" &&
+		 test "$(printf "%s\n" "$CUT04_CMD" | grep -cE "(^|[[:space:]])[-]p([[:space:]]|$)|Port=")" = "0"'
+
+	# The auth-free corroboration, taken while the selector is still `old`.
+	FP_VIA_OLD=$(keyscan_fp app.demo.test)
+	FP_OLD=$(hostkey_fp server-old)
+	export FP_VIA_OLD FP_OLD
+	assert "CUT-04 host key at the proxied port is server-old's own (auth-free reading)" \
+		'test -n "$FP_VIA_OLD" && test "$FP_VIA_OLD" = "$FP_OLD"'
+
+	# ---- D-40: the in-flight session, MEASURED rather than asserted in prose ----
+	#
+	# A backgrounded session sleeps across the reload and then reports where it
+	# actually landed. With worker_shutdown_timeout unset (D-40), the old worker
+	# holding this connection does not exit, so the session keeps relaying to its
+	# ORIGINAL backend for its whole life while new connections are accepted by
+	# the new worker generation and use the new selector.
+	#
+	# Every session here is timeout-bounded and waited for. A leaked long-lived
+	# session pins an old worker indefinitely — that is D-40's intended behaviour
+	# and not a bug, but a leaked one makes any later process-based observation
+	# nondeterministic across takes.
+	_d40log=$(mktemp)
+	docker compose exec -T client timeout 25 ssh $SSH_OPTS demo@app.demo.test "sleep 6; hostname" >"$_d40log" 2>&1 &
+	_d40pid=$!
+	sleep 2
+
+	sh scripts/flip.sh new >/dev/null 2>&1
+	settle_flip new
+	set_active
+
+	D40_FRESH=$(docker compose exec -T client timeout 10 ssh $SSH_OPTS demo@app.demo.test hostname 2>&1)
+	wait "$_d40pid"
+	D40_INFLIGHT=$(cat "$_d40log")
+	rm -f "$_d40log"
+	export D40_FRESH D40_INFLIGHT
+
+	assert "D-40 the in-flight session still reports OLD after the reload" \
+		'printf "%s\n" "$D40_INFLIGHT" | grep -qx "server-old"'
+	assert "D-40 a session opened after the reload reports NEW" \
+		'printf "%s\n" "$D40_FRESH" | grep -qx "server-new"'
+
+	# ---- CUT-04, the second reading: same variable, no client-side change ----
+	CUT04_AFTER=$(sh -c "$_sshcmd" 2>&1)
+	export CUT04_AFTER
+	assert "CUT-04 the identical stored command returns OLD, then NEW" \
+		'printf "%s\n" "$CUT04_BEFORE" | grep -qx "OLD server-old" &&
+		 printf "%s\n" "$CUT04_BEFORE" | grep -qx "server-old" &&
+		 printf "%s\n" "$CUT04_AFTER" | grep -qx "NEW server-new" &&
+		 printf "%s\n" "$CUT04_AFTER" | grep -qx "server-new"'
+
+	FP_VIA_NEW=$(keyscan_fp app.demo.test)
+	FP_NEW=$(hostkey_fp server-new)
+	export FP_VIA_NEW FP_NEW
+	assert "CUT-04 host key at the proxied port is now server-new's own" \
+		'test -n "$FP_VIA_NEW" && test "$FP_VIA_NEW" = "$FP_NEW"'
+	assert "CUT-04 the host-key reading CHANGED with the selector" \
+		'test -n "$FP_VIA_OLD" && test -n "$FP_VIA_NEW" && test "$FP_VIA_OLD" != "$FP_VIA_NEW"'
+
+	# SSH-03 again on the far side of the flip: the banner is still the backend's
+	# own claim, and it now names the other machine.
+	assert "SSH-03 the banner through the hop now names NEW server-new" \
+		'out=$(docker compose exec -T client timeout 10 ssh $SSH_OPTS demo@app.demo.test true 2>&1)
+		 rc=$?
+		 test "$rc" -eq 0 && printf "%s\n" "$out" | grep -qx "NEW server-new"'
+
+	# ---- leave the rig selecting OLD, and prove it landed ----
+	sh scripts/flip.sh old >/dev/null 2>&1
+	settle_flip old
+	set_active
+	assert "the ssh section leaves the rig selecting old" \
+		'test "$ACTIVE_SEL" = "old" && test "$(docker compose exec -T proxy curl -sS --max-time 2 http://localhost:8081/active-backend | tr -d "\r\n")" = "old"'
+
+	finish_ssh_state
 
 	# ---- guards over this section's own text ----
 	#
