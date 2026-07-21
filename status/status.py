@@ -437,8 +437,16 @@ class StatusHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         route = self.path.split("?", 1)[0]
         if route == "/api/status":
+            # ensure_ascii=False, deliberately. The UI-SPEC error-detail copy is
+            # "{path} — {reason}" with a real em dash, and json.dumps defaults to
+            # escaping it into a six-character backslash-u sequence. Any consumer
+            # treating the body as text — the smoke assertions, a `curl | grep`
+            # from the presenter — then sees the escape rather than the dash. The
+            # charset is declared on the response, so the bytes are unambiguous.
             self._respond(
-                200, json.dumps(build(), indent=2) + "\n", "application/json"
+                200,
+                json.dumps(build(), indent=2, ensure_ascii=False) + "\n",
+                "application/json; charset=utf-8",
             )
         elif route == "/healthz":
             self._respond(200, "ok\n", "text/plain; charset=utf-8")
