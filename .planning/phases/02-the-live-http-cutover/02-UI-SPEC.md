@@ -460,7 +460,7 @@ post-flip. So at the instant of the flip there are zero post-flip rows and the b
 0 — immediately under the header, with whatever pre-flip rows exist beneath it. Each post-flip request
 inserts a row above it, moving it down: 0 → 1 → 2 → 3, where it pins for the remainder of the 60 s.
 
-> **Corrected 2026-07-21.** This rule previously read `min(3, pre_flip_row_count)`, which was wrong in
+> **Corrected 2026-07-21.** This rule previously read `min(3, post_flip_row_count)`, which was wrong in
 > two ways: `pre_flip_row_count` is fixed at flip time, so the boundary could never "migrate" as the
 > same paragraph required; and it is geometrically impossible — an index of 2 asserts two rows above
 > the boundary, but with no post-flip traffic yet there are none to place there. The plan-checker
@@ -711,7 +711,7 @@ Applicable state considerations resolved: **12 covered, 2 backstop, 1 unresolved
 | partial | config and traffic disagree (D-27) | ✅ covered | The PENDING state: dashed white pulsing sync rule, `↓ WAITING FOR RELOAD`, 4px white outline on the config chip, both literal words visible simultaneously. Never merged into one reading |
 | overflow | request table beyond 8 rows | ✅ covered | Fixed 8 rows, oldest evicted, no scrollbar. Boundary pinned at row index 3 for 60 s after a flip so the money shot cannot scroll away |
 | partial | one input readable, the other not | ✅ covered | Both directions collapse to full UNAVAILABLE with `CANNOT DETERMINE`; the error detail line names the failing source. No half-lit rendering exists — a partially live page looks operational and gets read as authoritative |
-| zero-one-many | fewer than 4 pre-flip rows on a fresh take | ✅ covered | Pin is a ceiling: boundary sits at `min(3, pre_flip_row_count)` and migrates down to index 3 as post-flip rows arrive. **No blank filler rows** — empty rows read as "still loading" on a projector |
+| zero-one-many | fewer than 4 pre-flip rows on a fresh take | ✅ covered | Pin is a ceiling: boundary sits at `min(3, post_flip_row_count)` and migrates down to index 3 as post-flip rows arrive. **No blank filler rows** — empty rows read as "still loading" on a projector |
 | empty | EVIDENCE CLEARED confirmation has no layout slot | ✅ covered | Rendered as a `position: fixed` overlay at `bottom: 48px`, z-above the footer, occluding it for 10 s. Declared and intended; nothing reflows because nothing moves |
 | overflow | counter exceeding 6 characters | ✅ covered | Compact notation (`1.0M`) at 7+ chars; tabular numerals prevent width jitter at every poll |
 | long-text | request path longer than 28 characters | 🧪 backstop | Truncate at 28ch with `…`, never wrap — a wrapped row breaks the 68px uniform row height and shifts the boundary rule's pixel position. Needs a visual check with a long real path (e.g. `/whoami?trace=…`) before sign-off |

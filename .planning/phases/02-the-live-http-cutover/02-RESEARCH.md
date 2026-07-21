@@ -1093,24 +1093,40 @@ Phase 2 extends this rather than introducing a second idiom (per CONTEXT.md's Re
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Should `make up` truncate the evidence log?**
+> **All four were decided during Phase 2 planning (2026-07-21) and the decisions live in executable
+> plan content, not just prose.** Each carries its resolution and owning plan below. Do not re-open
+> them without a new decision.
+
+1. **RESOLVED — Should `make up` truncate the evidence log?**
+   **Resolution: yes, truncate on `up`, and print one line noting it.** Owned by `02-01-PLAN.md`
+   (lines 158–166 and Task 3 action).
    - What we know: the named volume survives `docker compose down`, so `make down` + `make up` resumes a previous take's counters mid-count. `make reset` (`down -v`) and `make flip-old` (D-36) both clear it.
    - What's unclear: whether a presenter would ever *want* the previous take's evidence to survive a `down`/`up` cycle. D-36's intent ("the next take starts clean") suggests not.
    - Recommendation: truncate on `up`, and have `up` print one line noting it. Cheap, and it removes a way for the page to look second-hand. Flag it to the user in discuss if the planner disagrees.
 
-2. **Does Phase 3's SSH `stream` proxy need `worker_shutdown_timeout`?**
+2. **RESOLVED — Does Phase 3's SSH `stream` proxy need `worker_shutdown_timeout`?**
+   **Resolution: not in Phase 2. Leave a comment in `nginx.conf` so Phase 3 meets the question
+   rather than discovering it live; never set the directive now.** Owned by `02-01-PLAN.md`
+   (lines 167–170), enforced by a two-sided grep in Task 2 acceptance — zero uncommented
+   occurrences, at least one total.
    - What we know: old nginx workers persist until their connections close. This phase's HTTP requests are milliseconds long and keep-alive connections are closed on reload — verified. A live SSH session through a `stream` proxy is neither.
    - What's unclear: whether Phase 3's CUT-04 narrative wants an in-flight SSH session to survive the flip (arguably a *feature* — "existing sessions are undisturbed, new ones land on NEW") or to be cut.
    - Recommendation: out of scope here, but leave a comment in `nginx.conf` next to the reload discipline so Phase 3 encounters the question rather than discovering it live. Do **not** set `worker_shutdown_timeout` in Phase 2 — it would be an unused directive the presenter has to explain.
 
-3. **Should the status page's table show non-backend rows (503 guard, 9093 redirects) at all?**
+3. **RESOLVED — Should the status page's table show non-backend rows (503 guard, 9093 redirects)?**
+   **Resolution: exclude them** from the table, counters and traffic reading, via the filter
+   `port == "9092" AND backend != ""`. They stay fully visible in `make logs`. Owned by
+   `02-02-PLAN.md` (lines 118–127, Task 2 behaviour and acceptance).
    - What we know: UI-SPEC's table has a `status` column and an edge bar keyed to a backend. A row with no backend cannot be coloured or capped.
    - What's unclear: whether the presenter would value seeing the 503 guard fire in the table when demonstrating the typo failure mode.
    - Recommendation: exclude them from the table, counters and traffic reading in Phase 2 (Pattern 3's filter). They remain fully visible in `make logs`, which D-30 already positions as the raw corroborating view. Revisit only if the guard demo proves hard to narrate.
 
-4. **How many `active-backend.conf` map entries should the parser tolerate?**
+4. **RESOLVED — How many `active-backend.conf` map entries should the parser tolerate?**
+   **Resolution: parse `default` only, and report any other entry as `extra_map_entries` in the
+   JSON** so a Phase 3 port-keyed override surfaces rather than being silently ignored. Owned by
+   `02-02-PLAN.md` (api_contract and Task 3 acceptance).
    - What we know: today the map has exactly one entry (`default`). Phase 3 (D-13) `include`s the same file from the `stream` block, and the map is keyed on `$server_port`, which invites a per-port override.
    - What's unclear: whether Phase 3 will add port-keyed entries.
    - Recommendation: parse `default` only, and have the status service report the presence of any other entry in its JSON so it can be surfaced rather than silently ignored. Costs three lines now, avoids a wrong reading later.
