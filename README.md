@@ -13,8 +13,15 @@ alongside the 301-redirect approach for contrast. Phase 2 adds **the cutover
 itself** — one word, one reload, no restart — and **the projected status page on
 port 9094** that lets a room watch it happen. Phase 3 puts **SSH on port 22**
 through the same proxy and the same one-word selector, and adds `make verify`,
-which asserts both protocols landed on the same backend. All three are covered
-below.
+which asserts both protocols landed on the same backend. Phase 4 adds **the SSH
+host-key gotcha** — the thing that genuinely breaks on migration day — and the
+fix that scales to a real fleet. All four are covered below.
+
+**Running the demo? Read [`WALKTHROUGH.md`](WALKTHROUGH.md) instead.** This
+README is reference material, organised by subject and read out of order. The
+walkthrough is the script: eight beats, in order, each with the exact command,
+the output to expect and what to say. They are deliberately not copies of each
+other.
 
 ---
 
@@ -417,13 +424,23 @@ way `curl` does.
 ### The command
 
 ```bash
-docker compose exec client ssh demo@app.demo.test
+make ssh
 ```
 
 ```
 OLD server-old
 server-old:~$
 ```
+
+That target is `docker compose exec client ssh …` with the presenter-mode
+options pinned — see [the two connection modes](#the-two-connection-modes)
+below. Typing the bare `ssh` invocation instead works only once the client has
+already recorded this host: on a fresh rig, with an empty trust record and the
+default setting, it stops to ask you to confirm a fingerprint and blocks there
+until you answer — and with no terminal attached it does not even ask, it exits
+non-zero with a bare `Host key verification failed.` That is dead air on stage
+at the very first SSH beat, which is why the documented path goes through the
+target.
 
 `OLD server-old` is the backend's own pre-auth banner — the machine naming
 itself the instant the connection opens, before authentication, exactly as
@@ -440,7 +457,7 @@ a privileged host port**; `docker compose ps` shows nothing on 22.
 
 ```bash
 make flip-new
-docker compose exec client ssh demo@app.demo.test    # the identical command
+make ssh          # the identical command
 ```
 
 ```
@@ -450,11 +467,44 @@ server-new:~$
 
 The command is byte-identical either side of the flip. That is the whole claim.
 
+**One caveat, and it is Phase 4's entire subject:** if the client has already
+recorded this hostname's key while the selector was on OLD, the connection above
+does *not* succeed — it refuses, loudly, with
+`WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED!`. That is correct behaviour by
+every SSH client on earth, and it is the thing that actually breaks on migration
+day. See [The host-key gotcha](#the-host-key-gotcha-and-the-fix-that-scales-phase-4).
+
 **Worth narrating:** a session that was already open keeps talking to its
 original backend for its entire life, while a session opened after the flip lands
 on the new one. That is what *graceful* means — nginx hands the new configuration
 to a new worker generation and lets the old one finish its connections — and it
 is a genuine operational property of a real cutover, not a demo artefact.
+
+### The two connection modes
+
+There are exactly two named ways to SSH in this repository, and they have
+opposite intentions about trust. Confusing them is the single most likely way to
+lose a demo.
+
+| Mode | Where it lives | What it does with trust |
+|------|----------------|-------------------------|
+| **presenter mode** | `make ssh` | **Remembers.** A real trust record, strict checking, `accept-new` on first sight and `UpdateHostKeys` pinned off. This is the only mode in which the host-key gotcha is reachable |
+| **test mode** | `scripts/verify.sh` and the smoke suite's SSH section | **Discards.** The trust record is pointed at `/dev/null`, so a changed host key cannot be observed at all |
+
+**The consequence, plainly:** a presenter who runs the test-mode form on stage
+gets no gotcha, sees a clean login where the demo needed a refusal, and has no
+signal telling them why. Test mode exists so that the routing assertions cannot
+trip over a host-key change — it is deliberately blind, and it must stay that
+way.
+
+**`accept-new` is not the same thing as switching host-key verification off.**
+It records a host it has *never seen before* without stopping to ask — no prompt,
+no dead air on the priming beat — and it still refuses a host whose key has
+*changed*, with the full warning banner and a non-zero exit. This demo never
+teaches a room to disable the check. The blanket-disable form appears in exactly
+two files here — `scripts/verify.sh` and `scripts/smoke.sh` — each with an inline
+comment saying it is demo-only and naming the reason, and the suite asserts those
+comments still exist.
 
 ### `make verify` — the assertion (EVID-04/EVID-05)
 
@@ -522,6 +572,84 @@ from your own terminal rather than the `client` container.
 
 ---
 
+## The host-key gotcha and the fix that scales (Phase 4)
+
+The cutover moves HTTP and SSH together and the client never notices — with one
+exception, and it is the most valuable thing in the demo.
+
+### What breaks
+
+An SSH client records the host key it was shown, keyed on **the name you typed**.
+Connect once while the selector is on OLD, flip, and connect again, and the
+identical command refuses:
+
+```
+WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED!
+```
+
+Thirteen lines, exit status 255, ending on `Host key verification failed.` and
+naming the offending line of the client's trust record. Nothing is wrong; the
+client is doing exactly its job.
+
+**Why it reaches the client at all is itself the evidence.** The proxy relays the
+key exchange untouched — it never sees, terminates, caches or rewrites a host
+key. A Layer-7 device would have terminated the connection and presented its own
+key, and the client would never have learned that the backend moved. The gotcha
+firing is the proof that this is a genuine Layer-4 relay.
+
+### The fix
+
+```bash
+make fix-hostkeys
+```
+
+It gives `server-new` `server-old`'s host keys — six files, streamed container to
+container, never through a host path — **and then signals the running daemon**
+with a hangup so it loads them. Both halves are required: sshd reads its host
+keys once at startup and holds them in memory, so a copy on its own is a measured
+silent no-op that looks exactly like a fix that did not work. Never narrate this
+step as "we copied the keys"; say "we gave the new server the old server's
+identity, and told sshd to pick it up."
+
+Measured at 0.44 s, and it survives a container restart, so it cannot be undone
+under you mid-demo.
+
+Afterwards the client connects with its trust record byte-for-byte unchanged, and
+`server-new`'s public key still carries `root@server-old` in its comment field.
+That is cosmetic, it has no protocol effect, and it is the most vivid evidence in
+the room that the new server is wearing the old server's cryptographic identity.
+Do not "fix" it — point at it.
+
+The instinct is to run `ssh-keygen -R` on the client instead. It works, and it is
+the wrong answer: it is two steps rather than one, the second of which is
+trusting whatever answers next without checking, and it fixes exactly one
+machine. `WALKTHROUGH.md` shows both, in that order, for that reason.
+
+### Putting it back
+
+```bash
+make reset      # ~16 s, full rebuild — the documented re-arm path
+make rearm      # ~1 s, in place — the between-takes fast path
+```
+
+Re-arming the keys is not sufficient on its own: the client also has to record
+the old box's key again *before* the flip, or the failure has nothing to
+contradict. `WALKTHROUGH.md` gives the exact sequence.
+
+### `make verify` cannot see this, deliberately
+
+The verification script pins test mode, so it is structurally incapable of
+observing a host-key problem. This has been measured: presenter-mode SSH failing
+with status 255 at the same moment `make verify EXPECT=new` reported
+`OK  both protocols report NEW` and exited zero.
+
+That is a feature, not a gap. It answers *"did the routing land?"*, not *"does
+the client trust what it landed on?"* — two different questions that want two
+different tools. Do not reach for it to diagnose the gotcha; it will tell you the
+rig is fine, and it will be right.
+
+---
+
 ## What "the client never changes" means (HTTP-02 — the verification contract)
 
 This is the claim the whole demo rests on, and it is easy to test against the
@@ -572,7 +700,10 @@ docker compose exec client curl -sS http://app.demo.test:9092/whoami
 | `make test` | the full smoke suite (`sh scripts/smoke.sh`) — five sections, including the cutover, the SSH hop and the UI token audit |
 | `make contrast` | the proxied-vs-redirected side-by-side, two labelled lines |
 | `make reload` | `nginx -t`, then a graceful `nginx -s reload`, then a verifying request — never a container restart |
-| `make reset` | full teardown and rebuild, **and** restore of the flip include to OLD |
+| `make reset` | full teardown and rebuild, **and** restore of the flip include to OLD — also the documented re-arm of the host-key gotcha (~16 s) |
+| `make ssh` | **presenter mode** — SSH from the `client` container to `app.demo.test` with a real trust record and strict checking. The only mode in which the host-key gotcha is reachable, and therefore the one that deliberately exits non-zero after a flip |
+| `make fix-hostkeys` | give `server-new` `server-old`'s host keys **and** signal the running daemon to load them — the fix that touches no client (~0.4 s) |
+| `make rearm` | put the gotcha back in place: a fresh identity for `server-new` and a cleared trust record on the client, no rebuild (~1 s) — the between-takes fast path |
 
 **`make reset` is the between-takes command.** It runs `docker compose down -v`
 *and* rewrites `proxy/active-backend.conf` back to `old`. Both halves are
