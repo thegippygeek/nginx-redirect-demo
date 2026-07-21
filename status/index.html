@@ -137,6 +137,95 @@ body{
 /* ------------------------------------------------- 4. the evidence row */
 .evidence{ display:grid; grid-template-columns: 73.5rem 3rem 37.5rem; }
 
+/* --- 4a. the recent-requests table.
+   Five FIXED-pixel columns: 12 + 200 + 620 + 120 + 224 = 1176. Fixed, not
+   fractional, so a growing path string cannot reflow the columns and make the
+   boundary rule appear to move. */
+.tbl{ display:flex; flex-direction:column; }
+.thead,.row{
+  display:grid;
+  grid-template-columns: .75rem 12.5rem 38.75rem 7.5rem 14rem;
+  align-items:center;
+}
+.thead{
+  height:3rem; background:var(--panel);
+  border-bottom:1px solid var(--line);
+  font-size:var(--fs-meta); font-weight:400; color:var(--mut);
+  letter-spacing:.08em; text-transform:uppercase;
+}
+.thead span{ padding:0 var(--lg); }
+.thead .h-time{ padding:0 var(--md); }
+.thead .h-backend{ text-align:right; }
+
+.tbody{ display:flex; flex-direction:column; }
+
+/* Uniform height, always. A wrapped row would break the uniformity the
+   boundary rule's pixel position depends on, which is why a long path is
+   truncated rather than wrapped. */
+.row{
+  height:var(--row-h);
+  border-bottom:1px solid var(--line);
+  color:var(--fg); background:var(--old);
+  font-size:var(--fs-label); font-weight:400; line-height:1.3;
+  font-variant-numeric: tabular-nums;
+}
+.row.b-NEW{ background:var(--new); }
+.row.b-OLD{ background:var(--old); }
+.row span{ padding:0 var(--lg); overflow: hidden; white-space:nowrap; }
+.row .c-time{ font-family:var(--font-mono); padding:0 var(--md); }
+.row .c-path{ font-family:var(--font-mono); text-overflow:ellipsis; }
+.row .c-status{ font-family:var(--font-mono); }
+.row .c-backend{ font-weight:700; text-align:right; letter-spacing:.08em; }
+
+/* The SHAPE channel. OLD and NEW are isoluminant, so colour alone carries
+   nothing in greyscale: the bar is white against the accent fill and takes a
+   square cap for OLD, a chamfered peak for NEW. */
+.row .bar{ height:100%; padding:0; background:#fff; }
+.row.b-NEW .bar{ clip-path: polygon(0 100%, 0 1rem, 50% 0, 100% 1rem, 100% 100%); }
+
+/* --- 4b. the flip boundary. An 8px white rule is the highest-contrast object
+   on the page and it is a STRUCTURAL discontinuity: the table visibly breaks
+   in half. The colour change is the corroboration; the rule is the claim. */
+.bnd{ flex:0 0 auto; }
+.bnd-rule{ height:8px; background:#fff; }
+.bnd-cap{
+  height:3rem; background:var(--bg); color:var(--fg);
+  display:flex; align-items:center; justify-content:center;
+  font-size:var(--fs-label); font-weight:700; letter-spacing:.08em;
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- 4c. the empty state. Never blank filler rows: an empty row on a
+   projector reads as "still loading" and undermines the evidence claim. */
+.empty{
+  flex:1 1 auto; display:flex; flex-direction:column;
+  align-items:center; justify-content:center; gap:var(--md);
+  padding:0 var(--xl); text-align:center;
+  font-size:var(--fs-label); color:var(--mut); line-height:1.3;
+}
+.empty .eh{ font-weight:700; letter-spacing:.08em; }
+.empty .eb{ font-weight:400; }
+
+/* --- 4d. the stats rail. OLD is ALWAYS the top tile and the rail is never
+   sorted by count — position is a signal channel. */
+.rail{ display:flex; flex-direction:column; gap:var(--md); padding:var(--md); }
+.tile{
+  display:flex; align-items:center; justify-content:space-between;
+  padding:0 var(--lg); color:var(--fg);
+}
+.t-old{ height:8.75rem; background:var(--old); }
+.t-new{ height:8.75rem; background:var(--new); }
+.t-flip{ height:7.75rem; background:var(--bg); border:2px solid var(--line); }
+.tile .tl{
+  font-size:var(--fs-label); font-weight:700;
+  letter-spacing:.08em; text-transform:uppercase;
+}
+.t-flip .tl{ color:var(--mut); }
+.tile .tv{
+  font-size:var(--fs-display); font-weight:700; line-height:1.05;
+  letter-spacing:-.01em; font-variant-numeric: tabular-nums;
+}
+
 /* ------------------------------------------------------- 5. the footer */
 .foot{
   display:flex; align-items:center; gap:var(--sm);
@@ -176,9 +265,27 @@ body{
   <div></div>
 
   <section class="evidence">
-    <div class="panel" id="tableWrap"></div>
+    <div class="panel tbl">
+      <div class="thead">
+        <span class="h-bar"></span>
+        <span class="h-time">TIME</span>
+        <span class="h-path">PATH</span>
+        <span class="h-status">STATUS</span>
+        <span class="h-backend">BACKEND</span>
+      </div>
+      <div class="tbody" id="tbody">
+        <div class="empty">
+          <div class="eh">NO TRAFFIC OBSERVED YET</div>
+          <div class="eb">Send a request to http://app.demo.test:9092/ and it will appear here.</div>
+        </div>
+      </div>
+    </div>
     <div></div>
-    <div class="panel" id="railWrap"></div>
+    <div class="panel rail">
+      <div class="tile t-old"><span class="tl">OLD</span><span class="tv" id="cOld">0</span></div>
+      <div class="tile t-new"><span class="tl">NEW</span><span class="tv" id="cNew">0</span></div>
+      <div class="tile t-flip"><span class="tl" id="flipLbl">NO FLIP YET</span><span class="tv" id="flipVal">&mdash;</span></div>
+    </div>
   </section>
 
   <footer class="foot" id="foot"><span id="footText">updated &mdash;</span><span id="beat">&#9650;</span></footer>
@@ -244,6 +351,99 @@ function renderSync(data){
   $("page").classList.toggle("pending", data.sync === "PENDING");
 }
 
+/* -------------------------------------------- the recent-requests table */
+var PATH_MAX = 28;
+
+function el(tag, cls, text){
+  var n = document.createElement(tag);
+  if (cls) n.className = cls;
+  if (text !== undefined) txt(n, text);   /* never the markup-parsing property */
+  return n;
+}
+
+function clear(node){ while (node.firstChild) node.removeChild(node.firstChild); }
+
+function shortPath(p){
+  p = String(p == null ? "" : p);
+  return p.length > PATH_MAX ? p.slice(0, PATH_MAX - 1) + "…" : p;
+}
+
+function rowEl(r){
+  var row = el("div", "row " + backendClass(r.backend));
+  row.appendChild(el("span", "bar"));
+  row.appendChild(el("span", "c-time", r.time || ""));
+  row.appendChild(el("span", "c-path", shortPath(r.path)));
+  row.appendChild(el("span", "c-status", String(r.status == null ? "" : r.status)));
+  row.appendChild(el("span", "c-backend", r.backend || ""));
+  return row;
+}
+
+function boundaryEl(b){
+  var wrap = el("div", "bnd");
+  wrap.appendChild(el("div", "bnd-rule"));
+  wrap.appendChild(el("div", "bnd-cap",
+    "▲ FLIP LANDED · " + (b.at || "") + " · " + (b.from || "") + " → " + (b.to || "")));
+  wrap.appendChild(el("div", "bnd-rule"));
+  return wrap;
+}
+
+function emptyEl(){
+  var wrap = el("div", "empty");
+  wrap.appendChild(el("div", "eh", "NO TRAFFIC OBSERVED YET"));
+  wrap.appendChild(el("div", "eb",
+    "Send a request to http://app.demo.test:9092/ and it will appear here."));
+  return wrap;
+}
+
+/* The table shrinks to its REAL content. Three rows and a boundary is three
+   rows and a boundary, never three rows plus four blank ones. */
+function renderTable(data){
+  var body = $("tbody");
+  clear(body);
+  var rows = data.rows || [];
+  if (!rows.length){ body.appendChild(emptyEl()); return; }
+  /* boundary.row_index is the count of rows rendered ABOVE the boundary and is
+     supplied by the service. Recomputing it here would put the windowing logic
+     in two places that can disagree. */
+  var at = data.boundary ? data.boundary.row_index : -1;
+  for (var i = 0; i < rows.length; i++){
+    if (i === at) body.appendChild(boundaryEl(data.boundary));
+    body.appendChild(rowEl(rows[i]));
+  }
+  if (at === rows.length) body.appendChild(boundaryEl(data.boundary));
+}
+
+/* ---------------------------------------------------------- the stats rail */
+function fmtCount(n){
+  n = Number(n) || 0;
+  if (n >= 1e6) return (n / 1e6).toFixed(1) + "M";   /* nobody reads the 6th digit at 10 m */
+  if (n >= 1e5) return (n / 1e3).toFixed(1) + "K";
+  return n.toLocaleString("en-US");
+}
+
+/* Formatted from the server-supplied since_flip_s on every poll. A client-side
+   interval keeps counting while the service is dead, which is precisely the
+   stale-but-plausible failure D-28 forbids. */
+function fmtSince(s){
+  var t = Math.max(0, Math.round(Number(s)));
+  if (t >= 3600) return "59:59+";
+  var m = Math.floor(t / 60), ss = t % 60;
+  return m + ":" + (ss < 10 ? "0" : "") + ss;
+}
+
+function renderRail(data){
+  var c = data.counts || { OLD: 0, NEW: 0 };
+  txt($("cOld"), fmtCount(c.OLD));
+  txt($("cNew"), fmtCount(c.NEW));
+  if (data.since_flip_s == null){
+    txt($("flipLbl"), "NO FLIP YET");
+    txt($("flipVal"), EM);
+  } else {
+    txt($("flipLbl"), "SINCE FLIP");
+    txt($("flipVal"), fmtSince(data.since_flip_s));
+  }
+}
+
 /* ------------------------------------------------------------- the footer */
 function renderFoot(data, ageMs){
   var foot = $("foot"), stale = ageMs > STALE_MS;
@@ -264,9 +464,12 @@ function beat(){
 /* --------------------------------------------------------------- the poll */
 function render(data){
   if (data.log_path) lastLogPath = data.log_path;
+  lastData = data;
   renderConfig(data);
   renderTraffic(data);
   renderSync(data);
+  renderTable(data);
+  renderRail(data);
   renderFoot(data, Date.now() - lastOkAt);
 }
 
@@ -284,10 +487,13 @@ function poll(){
 function watchdog(){
   var age = Date.now() - lastOkAt;
   if (age > WATCHDOG_MS){ render(unreachable()); return; }
-  renderFoot({ log_path: lastLogPath, served_at: null }, age);
+  /* Only the footer's own age reading moves between polls — the watchdog must
+     not overwrite the served_at the last good poll established. */
+  renderFoot(lastData, age);
 }
 
 var lastLogPath = "";
+var lastData = { log_path: "", served_at: null };
 function unreachable(){
   return {
     state: "UNAVAILABLE", failing_source: "status",
