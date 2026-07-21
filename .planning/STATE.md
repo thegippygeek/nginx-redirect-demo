@@ -103,9 +103,9 @@ Recent decisions affecting current work:
 - [Phase 03]: The stream log reuses the HTTP log's backend= field name so make logs-demo colours SSH lines free, with selector= on the same line and a config comment stating the provenance difference (proxy's own selector, not an observed identity)
 - [Phase 03]: worker_shutdown_timeout stays unset (D-40): an in-flight SSH session survives the reload on its original backend, measured live by the smoke suite rather than asserted in prose
 - [Phase 03]: Editing proxy/nginx.conf requires a proxy container recreate — it is a single-file bind mount and an inode-replacing edit leaves the container on stale config while nginx -t still reports success
-- [Phase ?]: verify.sh exit vocabulary 0/1/2/3 — usage never shares a code with mismatch, and the cross-protocol disagreement (D-45) gets its own code so the suite can prove the branch is reachable
-- [Phase ?]: The disagreement check runs first in verify.sh's verdict — both readings are individually valid there, so a mismatch-first order would discard the fact that the flip landed on exactly one protocol
-- [Phase ?]: VERIFY_SSH_HOST is a documented test seam, not a presenter option: pointing SSH at the non-selected backend produces a genuine disagreement rather than a simulated one
+- [Phase 3]: verify.sh exit vocabulary 0/1/2/3 — usage never shares a code with mismatch, and the cross-protocol disagreement (D-45) gets its own code so the suite can prove the branch is reachable
+- [Phase 3]: The disagreement check runs first in verify.sh's verdict — both readings are individually valid there, so a mismatch-first order would discard the fact that the flip landed on exactly one protocol
+- [Phase 3]: VERIFY_SSH_HOST is a documented test seam, not a presenter option: pointing SSH at the non-selected backend produces a genuine disagreement rather than a simulated one
 
 ### Pending Todos
 
