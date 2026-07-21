@@ -9,7 +9,7 @@
 # target vocabulary is stable from the start; their recipes arrive with the
 # plans that own them.
 
-.PHONY: up down status logs logs-demo test reset contrast reload check flip flip-old flip-new verify clear-evidence
+.PHONY: up down status logs logs-demo test reset contrast reload check flip flip-old flip-new verify clear-evidence ssh fix-hostkeys rearm
 
 # The evidence volume survives `docker compose down` and is removed only by
 # `down -v`, so without the truncation below a down+up cycle would resume a
@@ -127,6 +127,69 @@ flip-new:
 EXPECT ?= old
 verify:
 	@sh scripts/verify.sh $(EXPECT)
+
+# make ssh — PRESENTER MODE (D-52), and the only mode in which the Phase 4
+# host-key gotcha is reachable.
+#
+# There are exactly TWO named connection modes in this repository and they have
+# opposite intentions about trust:
+#
+#   TEST MODE      -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null
+#                  lives in scripts/verify.sh and smoke.sh's section_ssh, each
+#                  with an inline demo-only justification. It DISCARDS trust so
+#                  that 186 routing assertions cannot trip over a host-key
+#                  change. Neither of those pins may ever appear below.
+#   PRESENTER MODE this target. It REMEMBERS trust, so a changed host key is the
+#                  only thing you see.
+#
+# `accept-new` IS NOT `no`, and the difference matters to every person watching
+# this typed on a projector: it records an UNSEEN host silently — no
+# trust-on-first-use prompt, no dead air on the priming beat — and it STILL
+# refuses a CHANGED key with the full warning banner (measured, rc=255). This
+# demo must never teach a room to switch host-key verification off.
+#
+# UpdateHostKeys=no — without it OpenSSH rewrites the client's own trust record
+# on the first successful post-fix connection, appending the server's other host
+# keys and leaving a backup behind (measured: 95 bytes becoming 837, plus a
+# known_hosts.old, with nobody touching anything). With it pinned, KEY-04's "no
+# client-side edit" is a checksum comparison rather than a claim about intent.
+#
+# DOCKER_CLI_HINTS=false — Compose appends a trailing "What's next" hint block
+# after any NON-ZERO exec, but only when output is a terminal. So it never shows
+# in the test suite and always shows on the projector, directly underneath the
+# failure the room is meant to be reading.
+#
+# NO trust-record path is named here, deliberately (D-48 as corrected by
+# research). The default location in the client container's writable layer is
+# what couples the client's trust lifetime to the backends' key lifetime; naming
+# a path is the first step toward a persistence mechanism that would survive
+# `docker compose down` and make the gotcha fire BEFORE the flip.
+#
+# The destination is hard-coded to the PROXIED hostname. The trust record is
+# keyed on the name the client typed, so a connection made to a backend's own
+# service name records a different, useless entry and the gotcha will not fire.
+ssh:
+	@DOCKER_CLI_HINTS=false docker compose exec client ssh \
+	  -o StrictHostKeyChecking=accept-new -o UpdateHostKeys=no \
+	  demo@app.demo.test
+
+# D-50: the fix, as one memorable command. It gives server-new server-old's host
+# keys AND signals the running daemon to load them — sshd caches its keys in
+# memory at startup, so the transfer alone is a measured silent no-op (D-59).
+# Never narrate this as "we copied the keys".
+#
+# The recipe body lives in the script for the same reason `flip`'s and
+# `verify`'s do: the sequence needs early exits, and Make 3.81 without a
+# one-shell directive runs every recipe line in its own shell.
+fix-hostkeys:
+	@sh scripts/fix-hostkeys.sh
+
+# D-51: the between-takes fast path, about a second, in place, no rebuild.
+# `make reset` remains the documented headline re-arm — it also regenerates BOTH
+# backends' keys and rebuilds, at a measured 16.5 s. Use this one when you are
+# running takes back to back.
+rearm:
+	@sh scripts/rearm.sh
 
 # D-36, as an explicit lever. Truncate, never unlink: nginx holds the descriptor
 # and would keep writing into an unlinked inode. Issued into the PROXY
