@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 2
 current_phase_name: The Live HTTP Cutover
 status: executing
-stopped_at: Completed 02-02-PLAN.md
-last_updated: "2026-07-21T09:10:49.932Z"
+stopped_at: Completed 02-03-PLAN.md
+last_updated: "2026-07-21T09:40:09.594Z"
 last_activity: 2026-07-21
 last_activity_desc: Phase 2 execution started
 progress:
   total_phases: 2
   completed_phases: 1
   total_plans: 7
-  completed_plans: 5
+  completed_plans: 6
 ---
 
 # Project State
@@ -28,11 +28,11 @@ See: .planning/PROJECT.md (updated 2026-07-21)
 ## Current Position
 
 Phase: 2 (The Live HTTP Cutover) — EXECUTING
-Plan: 3 of 4
+Plan: 4 of 4
 Status: Ready to execute
 Last activity: 2026-07-21 — Phase 2 execution started
 
-Progress: [███████░░░] 71%
+Progress: [█████████░] 86%
 
 ## Performance Metrics
 
@@ -63,6 +63,7 @@ Progress: [███████░░░] 71%
 | Phase 01 P03 | 22 min | 3 tasks | 5 files |
 | Phase 02 P01 | 35 min | 3 tasks | 6 files |
 | Phase 02 P02 | 25 min | 3 tasks | 4 files |
+| Phase 02 P03 | 42 min | 3 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -87,6 +88,8 @@ Recent decisions affecting current work:
 - [Phase 02]: Status container mounts ./proxy as a directory, not active-backend.conf as a single file — D-34 documents live-editing the file in an editor; an inode replacement would freeze a single-file mount on stale content, making a landed cutover read as permanently PENDING
 - [Phase 02]: The evidence service derives everything from three inputs, never two — config unreadable OR log unreadable OR proxy not answering -> full UNAVAILABLE. The active proxy liveness probe is the only input that catches a dead proxy behind a still-readable log (D-28)
 - [Phase 02]: boundary.row_index and since_flip_s are computed server-side and consumed verbatim by the page — Client-side re-derivation duplicates the windowing logic, and a client-side clock keeps counting while the service is dead
+- [Phase 02]: Status page table row height ships at 52px, not UI-SPEC's 68px reference — UI-SPEC's own vertical numbers sum to ~1267px against a 1080px frame it also declares must never scroll; the no-scrollbar invariant outranks the derived row-height figure, and row uniformity is preserved exactly
+- [Phase 02]: The recent-requests table edge bar renders white, not accent-on-accent — UI-SPEC specifies both a full-width accent row fill and an accent edge bar, which together make the bar invisible and delete a shape channel that is mandatory because OLD and NEW are isoluminant
 
 ### Pending Todos
 
@@ -95,6 +98,7 @@ None yet.
 ### Blockers/Concerns
 
 - Port 22 on the host may already be bound by the laptop's own sshd — Phase 1/3 must confirm the mapping strategy that keeps "no client change" honest.
+- scripts/flip.sh truncates the evidence AFTER its confirming request, so flip.sh old fires the status page convergence sequence ~1 time in 3 (measured). One-line structural fix logged in deferred-items.md D1; file is owned by 02-01, deferred to 02-04.
 
 ## Deferred Items
 
@@ -104,6 +108,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-07-21T09:10:34.999Z
-Stopped at: Completed 02-02-PLAN.md
+Last session: 2026-07-21T09:39:58.393Z
+Stopped at: Completed 02-03-PLAN.md
 Resume file: None

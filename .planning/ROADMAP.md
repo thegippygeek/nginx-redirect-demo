@@ -64,7 +64,7 @@ Plans:
   3. A status page shows which backend is currently active and lists recent requests with the backend that answered each
   4. Presenter can flip back to `server-old` and re-run the whole cutover without tearing anything down
 
-**Plans**: 2/4 plans executed
+**Plans**: 3/4 plans executed
 **UI hint**: yes
 
 Plans:
@@ -78,7 +78,7 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 02-03-PLAN.md — The projected status page to `02-UI-SPEC.md`: the D-27 dual reading, the recent-requests table with its flip boundary, the stats rail, and the four states with the convergence sequence (EVID-02/03)
+- [x] 02-03-PLAN.md — The projected status page to `02-UI-SPEC.md`: the D-27 dual reading, the recent-requests table with its flip boundary, the stats rail, and the four states with the convergence sequence (EVID-02/03)
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
@@ -123,7 +123,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Demo Up, HTTP Lands on OLD | 3/3 | Complete | 2026-07-21 |
-| 2. The Live HTTP Cutover | 2/4 | In Progress|  |
+| 2. The Live HTTP Cutover | 3/4 | In Progress|  |
 | 3. SSH Through the Stream Proxy | 0/TBD | Not started | - |
 | 4. Host-Key Gotcha and the Presenter Walkthrough | 0/TBD | Not started | - |
 
