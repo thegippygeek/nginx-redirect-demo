@@ -1418,6 +1418,133 @@ section_ssh() {
 	assert "the ssh section leaves the rig selecting old" \
 		'test "$ACTIVE_SEL" = "old" && test "$(docker compose exec -T proxy curl -sS --max-time 2 http://localhost:8081/active-backend | tr -d "\r\n")" = "old"'
 
+	# ============ EVID-04 / EVID-05: scripts/verify.sh (Plan 03-03) =========
+	#
+	# The phase's own assertion tool, asserted. A verifier that cannot go red is
+	# worse than no verifier at all: it converts an unexamined assumption into
+	# documented evidence. So BOTH failure paths are exercised LIVE here — a
+	# mismatch against the expectation, and the two protocols disagreeing with
+	# each other — rather than merely grepped for in the source.
+	#
+	# The rig is selecting OLD at this point and the group above installed the
+	# trap-based restore. This group flips too; it deliberately installs no
+	# second trap.
+	#
+	# The exit-code vocabulary asserted below, matching the script's header:
+	#   0 success   1 mismatch vs the expectation   2 usage   3 protocols disagree
+	# The distinction between 1 and 2 is load-bearing: a fumbled invocation on
+	# stage must never be readable as a failed cutover.
+	#
+	# VERIFY_SSH_HOST is the script's documented TEST SEAM — the SSH target,
+	# defaulting to the proxied demo hostname. Pointing it at a named backend
+	# while the selector says the other one produces a GENUINE, non-simulated
+	# disagreement, which is the only way to prove D-45's branch is reachable
+	# rather than merely present.
+
+	assert "EVID-04 verify.sh old on an OLD rig exits 0 and reports BOTH protocols" \
+		'out=$(sh scripts/verify.sh old 2>&1)
+		 rc=$?
+		 test "$rc" -eq 0 &&
+		 printf "%s\n" "$out" | grep -qE "^HTTP .*OLD server-old" &&
+		 printf "%s\n" "$out" | grep -qE "^SSH .*OLD server-old"'
+
+	# ---- EVID-04 ordering edge ----
+	#
+	# HTTP first, SSH second, on every run. A fixed order is what lets the
+	# presenter read the pair at a glance instead of parsing labels on stage.
+	assert "EVID-04 ordering edge: the HTTP reading line precedes the SSH reading line" \
+		'out=$(sh scripts/verify.sh old 2>&1)
+		 printf "%s\n" "$out" | awk "/^HTTP /{h=NR} /^SSH /{s=NR} END{exit !(h>0 && s>0 && h<s)}"'
+
+	# ---- EVID-04 adjacency edge ----
+	#
+	# A protocol that could not be read reports its failure on its OWN labelled
+	# line. A tool that omits the reading it could not take forces the presenter
+	# to work out which of the two is missing, live, in front of a room.
+	assert "EVID-04 adjacency edge: an unreachable SSH target still prints both labelled lines" \
+		'out=$(VERIFY_SSH_HOST=no-such-backend.invalid sh scripts/verify.sh old 2>&1)
+		 rc=$?
+		 test "$rc" -ne 0 &&
+		 printf "%s\n" "$out" | grep -qE "^HTTP " &&
+		 printf "%s\n" "$out" | grep -qE "^SSH "'
+
+	# ---- EVID-04 empty edge ----
+	assert "EVID-04 empty edge: no argument prints usage and exits 2" \
+		'out=$(sh scripts/verify.sh 2>&1)
+		 rc=$?
+		 test "$rc" -eq 2 && printf "%s\n" "$out" | grep -qE "^usage:"'
+	assert "EVID-04 empty edge: an unrecognised argument prints usage and exits 2" \
+		'out=$(sh scripts/verify.sh bogus 2>&1)
+		 rc=$?
+		 test "$rc" -eq 2 && printf "%s\n" "$out" | grep -qE "^usage:"'
+
+	# ---- EVID-04 concurrency edge ----
+	#
+	# A hung SSH connection must fail, never block. ConnectTimeout bounds the TCP
+	# connect ONLY, so without the script's own external wrapper an
+	# accepted-but-unanswered connection waits out sshd's 120s login grace period
+	# and stalls the whole suite. The outer bound here is the tripwire, not the
+	# mechanism: the assertion is that the run ended under its own power.
+	# timeout is used only when the host has it — it is not in a stock macOS.
+	assert "EVID-04 concurrency edge: an unreachable SSH target ends the run promptly, under its own power" \
+		'_t0=$(date +%s)
+		 if command -v timeout >/dev/null 2>&1; then
+		   out=$(VERIFY_SSH_HOST=no-such-backend.invalid timeout 60 sh scripts/verify.sh old 2>&1); rc=$?
+		 else
+		   out=$(VERIFY_SSH_HOST=no-such-backend.invalid sh scripts/verify.sh old 2>&1); rc=$?
+		 fi
+		 _t1=$(date +%s)
+		 test "$rc" -ne 0 && test "$rc" -ne 124 && test "$rc" -ne 143 && test $((_t1 - _t0)) -lt 45'
+
+	# ---- EVID-05: the mismatch path, live ----
+	#
+	# Exit 1, and NOT exit 2. The two must never be confused: one says the
+	# cutover did not land, the other says the command was typed wrong.
+	assert "EVID-05 mismatch: verify.sh new on an OLD rig exits 1 and names the mismatch" \
+		'out=$(sh scripts/verify.sh new 2>&1)
+		 rc=$?
+		 test "$rc" -eq 1 &&
+		 printf "%s\n" "$out" | grep -qE "^MISMATCH" &&
+		 printf "%s\n" "$out" | grep -qE "^HTTP " &&
+		 printf "%s\n" "$out" | grep -qE "^SSH "'
+
+	# ---- EVID-05 / D-45: the two protocols disagreeing with EACH OTHER ----
+	#
+	# The interesting failure, and the one this phase exists to be able to see:
+	# one protocol flipped, the other did not. Both readings are individually
+	# valid here, so a check that only compared each against the expectation
+	# would report this as a plain mismatch and lose the information that
+	# matters. Distinct code, distinct words, exercised end to end.
+	assert "EVID-05/D-45 disagreement: HTTP on OLD and SSH on NEW exits 3, not 1" \
+		'out=$(VERIFY_SSH_HOST=server-new sh scripts/verify.sh old 2>&1)
+		 rc=$?
+		 test "$rc" -eq 3 &&
+		 printf "%s\n" "$out" | grep -qE "^PROTOCOLS DISAGREE" &&
+		 test "$(printf "%s\n" "$out" | grep -cE "^MISMATCH")" = "0"'
+	assert "EVID-05/D-45 the disagreement message names which protocol reported which backend" \
+		'out=$(VERIFY_SSH_HOST=server-new sh scripts/verify.sh old 2>&1)
+		 printf "%s\n" "$out" | grep -E "^PROTOCOLS DISAGREE" | grep -qE "OLD" &&
+		 printf "%s\n" "$out" | grep -E "^PROTOCOLS DISAGREE" | grep -qE "NEW"'
+
+	# ---- EVID-05: the whole rig, end to end, both directions ----
+	sh scripts/flip.sh new >/dev/null 2>&1
+	settle_flip new
+	set_active
+	assert "EVID-05 end to end: verify.sh new exits 0 once the rig really is on NEW" \
+		'out=$(sh scripts/verify.sh new 2>&1)
+		 rc=$?
+		 test "$rc" -eq 0 &&
+		 printf "%s\n" "$out" | grep -qE "^HTTP .*NEW server-new" &&
+		 printf "%s\n" "$out" | grep -qE "^SSH .*NEW server-new"'
+
+	sh scripts/flip.sh old >/dev/null 2>&1
+	settle_flip old
+	set_active
+	assert "EVID-05 end to end: verify.sh old exits 0 again once the rig is back on OLD" \
+		'sh scripts/verify.sh old'
+	assert "EVID-05 the EVID group leaves the rig selecting old" \
+		'test "$ACTIVE_SEL" = "old" && test "$(docker compose exec -T proxy curl -sS --max-time 2 http://localhost:8081/active-backend | tr -d "\r\n")" = "old"'
+
 	finish_ssh_state
 
 	# ---- guards over this section's own text ----
@@ -1436,6 +1563,50 @@ section_ssh() {
 		'test "$(awk "/^section_[s]sh\(\) \{/,/^\}/" scripts/smoke.sh | grep -v "^[[:space:]]*#" | grep -cE "(^|[[:space:]])[-]q([[:space:]]|$)|LogL[e]vel=|[[:space:]][-]tt([[:space:]]|$)")" = "0"'
 	assert "BACK-04 guard: no ssh invocation sits on the left of a pipe in this section" \
 		'test "$(awk "/^section_[s]sh\(\) \{/,/^\}/" scripts/smoke.sh | grep -v "^[[:space:]]*#" | grep -c "s[s]h .*|")" = "0"'
+
+	# ---- guards over scripts/verify.sh (Plan 03-03) ----
+	#
+	# Every one of these strips FULL-LINE COMMENTS FIRST. The script's own prose
+	# names every hazard it guards against, so an unstripped grep would be
+	# invalidated by the very warning that makes the file trustworthy.
+	#
+	# The stripped text is asserted non-empty before anything negative is
+	# counted: a check over zero lines passes vacuously, and a missing file
+	# would otherwise make all four of these report green.
+	assert "EVID-05 guard: the comment-stripped verify.sh is a non-empty script" \
+		'test "$(grep -v "^[[:space:]]*#" scripts/verify.sh | grep -c .)" -gt 20'
+
+	# Pitfall S-1, the single most important guard in this phase. Research
+	# measured a piped invocation returning 0 while its output read that host key
+	# verification had FAILED — a pipeline reports the LAST command's status.
+	# Written that way the script would report success on a total failure, which
+	# is precisely the shape EVID-05 exists to rule out.
+	assert "EVID-05 guard: no ssh invocation sits on the left of a pipe in verify.sh" \
+		'test "$(grep -v "^[[:space:]]*#" scripts/verify.sh | grep -c "s[s]h .*|")" = "0"'
+
+	# Pitfall S-3 and S-5. Each quiet or log-level-lowering option was measured
+	# suppressing the pre-auth banner ENTIRELY, turning the capture into the
+	# empty string and the SSH reading into a blind one — the most likely way a
+	# future maintainer breaks EVID-04 while tidying up noisy output. A forced
+	# pty is unnecessary here and was measured hanging with no stdin.
+	assert "EVID-04 guard: no quiet, log-level-lowering or forced-pty ssh option in verify.sh" \
+		'test "$(grep -v "^[[:space:]]*#" scripts/verify.sh | grep -cE "(^|[[:space:]])[-]q([[:space:]]|$)|LogL[e]vel=|[[:space:]][-]tt([[:space:]]|$)")" = "0"'
+
+	# Pitfall S-7, the Phase 4 guard, asserted in BOTH halves. The options must
+	# be there — without them Phase 4's staged host-key mismatch turns every
+	# routing assertion into a host-key assertion — and the REASON must be there
+	# too. These two options are the one thing in this repo that could teach a
+	# projector full of people a bad habit; the comment is part of the contract.
+	assert "T-03-04 verify.sh carries both host-key options" \
+		'grep -qE "UserKnownHostsFile=/dev/null" scripts/verify.sh && grep -qE "StrictHostKeyChecking=no" scripts/verify.sh'
+	assert "T-03-04 verify.sh explains those options and names the phase that needs them" \
+		'grep -qiE "^[[:space:]]*#.*phase 4" scripts/verify.sh && grep -qiE "^[[:space:]]*#.*demo-only" scripts/verify.sh'
+
+	# T-03-13. ConnectTimeout bounds the TCP connect only, not the banner
+	# exchange and not authentication, so the invocation carries an external
+	# bound as well.
+	assert "T-03-13 guard: every ssh invocation in verify.sh is wrapped in an external timeout" \
+		'test "$(grep -v "^[[:space:]]*#" scripts/verify.sh | grep -cE "t[i]meout [0-9]+ s[s]h")" -ge 1'
 }
 
 section=${1:-all}
