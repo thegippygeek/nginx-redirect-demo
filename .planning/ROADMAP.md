@@ -127,7 +127,7 @@ Plans:
   5. Someone who has never seen the demo can follow the walkthrough top to bottom and reproduce every beat
      *(Judgement, not mechanically verifiable. The doc-lint in 04-04 proves the walkthrough is self-contained and executable; criterion 5 itself rests on the explicit cold-read human check in that plan.)*
 
-**Plans**: 3/4 plans executed
+**Plans**: 4/4 plans executed
 
 Plans:
 **Wave 1**
@@ -141,7 +141,7 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 04-04-PLAN.md — `section_walkthrough`: the four-part executable contract that stops the document rotting, the phase gate from cold, and the criterion-5 cold read as a **blocking human checkpoint** — `autonomous: false` (WALK-01/02/03)
+- [x] 04-04-PLAN.md — `section_walkthrough`: the four-part executable contract that stops the document rotting, the phase gate from cold, and the criterion-5 cold read as a **blocking human checkpoint** — `autonomous: false` (WALK-01/02/03)
 
 ## Progress
 
@@ -153,7 +153,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | 1. Demo Up, HTTP Lands on OLD | 3/3 | Complete | 2026-07-21 |
 | 2. The Live HTTP Cutover | 4/4 | Complete | 2026-07-21 |
 | 3. SSH Through the Stream Proxy | 3/3 | Complete | 2026-07-21 |
-| 4. Host-Key Gotcha and the Presenter Walkthrough | 3/4 | In Progress|  |
+| 4. Host-Key Gotcha and the Presenter Walkthrough | 4/4 | In Progress|  |
 
 ## Requirement Coverage
 

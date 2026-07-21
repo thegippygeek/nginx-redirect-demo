@@ -106,6 +106,16 @@ each reverted: the document moved aside (15 failures), a `**Say**` label removed
 executable. It is **not** evidence for ROADMAP criterion 5 and must never be cited as such. Criterion 5
 is carried by the blocking `checkpoint:human-verify` task in plan 04-04 (Task 3) and by nothing else.
 
+**Outcome of the checkpoint (2026-07-21).** The gate halted as designed and the project **owner**
+approved. Because the owner watched the entire build, this is an **owner-judgement acceptance**, not an
+independent cold read — no fresh, never-seen-it reader ran the document top to bottom. The
+comprehensibility dimension of criterion 5 is accepted on that owner judgement; the self-containedness
+and executability dimensions are mechanically verified by `section_walkthrough`. No reader guess-points
+were supplied, so there are no verbatim gaps recorded against `WALKTHROUGH.md`. The structured backstop
+truth in 04-04's must-haves stays authored as-is: a verifier reading the automated evidence should still
+abstain and escalate to a human rather than infer a pass — the owner's acceptance is a decision recorded
+beside it, not a conversion of it.
+
 ### On the full-run rehearsal (research question 10)
 
 **Recommendation: yes, and it is already written.** `section_hostkey` as specified above *is* the end-to-end rehearsal — prime on OLD → flip → gotcha → fix → success — because those are the only steps that can prove KEY-01..KEY-04 anyway. It was executed in full in this session and all seven assertions passed. Adding it costs nothing beyond the assertions the requirements already demand.
@@ -129,8 +139,11 @@ because everything around it is green.
 - [x] Presenter-mode SSH pins `-o UpdateHostKeys=no` so KEY-04 is mechanically assertable (D-58) — `Makefile:173`, and `KEY-04 the client's trust record is byte-identical across the fix` is the assertion that depends on it
 - [x] The gotcha assertion checks BOTH the warning text AND a non-zero exit code, without piping ssh — `KEY-02 the gotcha: a non-zero exit AND the changed-identification warning`, with `KEY-02 guard: no ssh invocation sits on the left of a pipe in this section` asserting the pipeline hazard stays absent
 - [x] The re-arm path is asserted, not assumed — `KEY-01 the re-arm restores the DIFFERING fingerprints` and `KEY-01 the re-arm clears the client's trust record`
-- [ ] **Criterion 5 has an explicit human checkpoint — it is not mechanically verifiable.** The checkpoint **exists**: plan 04-04 Task 3 is a `checkpoint:human-verify` with `gate="blocking"`, and 04-04 is `autonomous: false` in consequence, so execution genuinely halts there rather than the gate existing only on paper. **This item stays open until that cold read has actually happened.** `section_walkthrough` is not accepted as a substitute — it proves self-containedness, not comprehensibility, and treating the one as the other is precisely T-04-16. If no second reader is available, the correct outcome is to record criterion 5 as **judgement, unverified**, in those words, and to leave this box unticked.
+- [x] **Criterion 5 has an explicit human checkpoint — it is not mechanically verifiable.** *criterion 5: accepted on owner judgement 2026-07-21; independent cold read not performed.* The checkpoint **existed and halted** as designed: plan 04-04 Task 3 is a `checkpoint:human-verify` with `gate="blocking"`, 04-04 is `autonomous: false`, and execution genuinely stopped there. The project **owner** — who watched the entire build — reviewed and **approved**. That is an **owner-judgement acceptance**, *not* evidence that someone who has never seen the demo can follow `WALKTHROUGH.md` cold: no independent fresh reader performed the cold read. The comprehensibility dimension of criterion 5 is therefore accepted on owner judgement, recorded as a decision alongside the structured backstop — **not** a conversion of the backstop into a mechanical pass. `section_walkthrough`'s 25 assertions prove the document is self-contained and executable; they are not, and are nowhere cited as, evidence for comprehensibility (T-04-16). No reader guess-points were supplied, so there are no verbatim gaps to record against `WALKTHROUGH.md`.
 - [x] `nyquist_compliant: true` set in frontmatter
 
-**Approval:** mechanically signed off. **Criterion 5 outstanding** — awaiting the 04-04 Task 3 cold
-read, or an explicit "judgement, unverified" record if no second reader is available.
+**Approval:** signed off. Mechanical gate green (231/231 from cold, 17/17 proxy guard intact).
+**Criterion 5:** accepted on owner judgement 2026-07-21; independent cold read not performed. The
+doc-lint proves self-containedness and executability only; comprehensibility rests on the owner's
+acceptance, and the structured backstop remains authored so the verifier abstains and escalates to a
+human rather than inferring a pass on the automated evidence.

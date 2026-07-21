@@ -4,16 +4,16 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 4
 current_phase_name: Host-Key Gotcha and the Presenter Walkthrough
-status: executing
-stopped_at: Completed 04-03-PLAN.md
-last_updated: "2026-07-21T13:53:38.336Z"
+status: verifying
+stopped_at: Completed 04-04-PLAN.md — final plan of v1
+last_updated: "2026-07-21T23:36:05.921Z"
 last_activity: 2026-07-21
 last_activity_desc: Phase 4 execution started
 progress:
   total_phases: 4
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 14
-  completed_plans: 13
+  completed_plans: 14
 ---
 
 # Project State
@@ -29,10 +29,10 @@ See: .planning/PROJECT.md (updated 2026-07-21)
 
 Phase: 4 (Host-Key Gotcha and the Presenter Walkthrough) — EXECUTING
 Plan: 4 of 4
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-07-21 — Phase 4 execution started
 
-Progress: [█████████░] 93%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -71,6 +71,7 @@ Progress: [█████████░] 93%
 | Phase 04 P01 | 24min | 3 tasks | 3 files |
 | Phase 04 P02 | 15 min | 2 tasks | 1 files |
 | Phase 04 P03 | 14 min | 2 tasks | 2 files |
+| Phase 04 P04 | 20min | 3 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -116,6 +117,7 @@ Recent decisions affecting current work:
 - [Phase 04]: section_hostkey's traps restore the selector by flipping FORWARD to old (scripts/flip.sh old), never by restoring an entry snapshot — guard_check()'s snapshot idiom is correct for a section that writes a known-bad value, but wrong for one whose contract is an end state. The snapshot version silently undid the section's own flip back to old when the rig happened to start on new — a passing assertion with a dirty working tree.
 - [Phase 04]: The wrong fix (ssh-keygen -R) is written as demonstration-then-contrast, never as condemnation — Shown succeeding with no editorial, then contrasted on two verified facts and closed with the fleet-scale question; the audience draws the conclusion, and the framing survives either presentational preference
 - [Phase 04]: make reset is the documented headline re-arm and make rearm is the between-takes footnote, with both measured timings stated — Honours D-51 verbatim while giving a presenter doing takes back to back the ~1 s option they will actually want, informed rather than guessed
+- [Phase ?]: Criterion 5 accepted on owner judgement 2026-07-21; independent cold read not performed — doc-lint proves self-containedness only, not comprehensibility (T-04-16)
 
 ### Pending Todos
 
@@ -134,6 +136,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-07-21T13:53:24.099Z
-Stopped at: Completed 04-03-PLAN.md
+Last session: 2026-07-21T23:36:05.914Z
+Stopped at: Completed 04-04-PLAN.md — final plan of v1
 Resume file: None
