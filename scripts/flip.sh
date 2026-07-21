@@ -15,8 +15,11 @@
 #                                    serving the PREVIOUS config
 #   5. prove it landed             — the running config reporting its own
 #                                    selector is the only source that cannot lie
-#   6. settle, then one request    — absorbs the measured interleave window and
-#                                    seeds the projected page's traffic reading
+#   6. settle, then EITHER one     — absorbs the measured interleave window.
+#      confirming request (forward)  Forward: seeds the projected page's traffic
+#      OR the evidence truncation    reading. Reset (`old`, D-36): truncates and
+#      (reset) — never both          issues NO request, so the reset cannot flash
+#                                    the convergence sequence (deferred D1)
 #
 # POSIX sh. Deliberately NOT `set -e`: `diff` exits non-zero when it finds a
 # difference, which is the expected case here, and every genuine failure path
@@ -149,13 +152,24 @@ rm -f "$BAK"
 # and step 5 has already consumed real time.
 sleep 0.2
 echo
-printf 'curl -fsS http://localhost:9092/whoami  ->  '
-curl -fsS http://localhost:9092/whoami
 
-# ------------------------------------------- D-36: the between-takes reset
-# `old` is the reset direction, so it also clears the evidence — the counters,
-# the table, the boundary and the since-flip clock all reset atomically because
-# the status service holds no state of its own.
+# The two directions diverge here, and the split is structural rather than
+# cosmetic (deferred item D1).
+#
+# FORWARD (`new`, or `old` when it is a genuine cutover rather than a reset):
+# one confirming request, whose stated purpose is to seed the projected page's
+# traffic reading for the take that is STARTING.
+#
+# RESET (`old`, D-36): the evidence is truncated and NO confirming request is
+# issued. Ordering matters. A confirming request followed by a truncation makes
+# the traffic reading genuinely move NEW -> OLD for the few hundred milliseconds
+# between the two, and a 1 s poll landing in that window fires the projected
+# page's convergence sequence — the money shot, spent on a reset, in front of a
+# room. Measured at 1 occurrence in 3 before this change. The page cannot see a
+# truncation coming, so no client-side guard can make it deterministic; removing
+# the request removes the window itself. The reset direction has nothing to seed
+# by definition: it exists to leave the counters, the table, the boundary and
+# the since-flip clock all reading zero.
 #
 # TRUNCATE, never unlink. nginx holds the descriptor with O_APPEND, so after a
 # truncation the next write lands at offset 0 with no sparse NUL hole. `rm`
@@ -164,10 +178,12 @@ curl -fsS http://localhost:9092/whoami
 #
 # Issued INTO THE PROXY CONTAINER: the status service's mount is read-only by
 # design, and it is deliberately the tier that cannot alter the evidence.
-#
-# Last, not first — the confirming request above is a real request and belongs
-# to the take that is ending, not the one about to start.
 if [ "$TARGET" = "old" ]; then
 	docker compose exec -T proxy sh -c ": > $EVIDENCE"
 	echo "evidence cleared — the next take starts from zero"
+	echo "  (no confirming request: the reset direction seeds nothing, and a"
+	echo "   request here would flash the convergence sequence on the projector)"
+else
+	printf 'curl -fsS http://localhost:9092/whoami  ->  '
+	curl -fsS http://localhost:9092/whoami
 fi

@@ -782,6 +782,31 @@ section_cutover() {
 	assert "CUT-05 the reset reports sync AWAITING_FIRST_REQUEST, not a stale IN_SYNC" \
 		"test '$_nsync' = 'AWAITING_FIRST_REQUEST'"
 
+	# ---- D1: the reset direction issues NO confirming request ----
+	#
+	# Ordering, not politeness. A confirming request followed a second later by
+	# the truncation makes the traffic reading genuinely move NEW -> OLD for that
+	# window, and a 1 s poll landing inside it fires the projected page's
+	# convergence sequence — the money shot, spent on a reset. Measured at 1 in 3
+	# before the fix. The page cannot see a truncation coming, so this has to be
+	# structural: the reset seeds nothing and therefore requests nothing.
+	_d1f=$(mktemp)
+	_d1r=$(mktemp)
+	sh scripts/flip.sh new >"$_d1f" 2>&1
+	settle_flip new
+	curl -sS -o /dev/null http://localhost:9092/whoami
+	sleep 0.3
+	sh scripts/flip.sh old >"$_d1r" 2>&1
+	settle_flip old
+	sleep 0.4
+	assert "D1 the forward flip still issues exactly one confirming request" \
+		"test \"\$(grep -c 'localhost:9092/whoami  ->' '$_d1f')\" = '1'"
+	assert "D1 the reset flip issues NO confirming request" \
+		"test \"\$(grep -c 'localhost:9092/whoami  ->' '$_d1r')\" = '0'"
+	assert "D1 the truncation is the reset's last observable act — 0 bytes, no post-truncation row" \
+		'test "$(docker compose exec -T proxy sh -c "wc -c < /var/log/demo/access.log" | tr -d "[:space:]")" = "0"'
+	rm -f "$_d1f" "$_d1r"
+
 	rm -f "$_st"
 
 	# ---- leave the rig the way the presenter expects to find it ----
