@@ -8,8 +8,10 @@ in an identity env var. An nginx proxy in front of them. The audience watches a
 request land on OLD, watches one word change in one small file, and watches the
 same request land on NEW without a single client-side change.
 
-Phase 1 (what this README covers) brings the rig up and proves HTTP lands on OLD
-through the proxy, alongside the 301-redirect approach for contrast.
+Phase 1 brings the rig up and proves HTTP lands on OLD through the proxy,
+alongside the 301-redirect approach for contrast. Phase 2 adds **the cutover
+itself** — one word, one reload, no restart — and **the projected status page on
+port 9094** that lets a room watch it happen. Both are covered below.
 
 ---
 
@@ -49,7 +51,7 @@ docker compose up -d --wait
 That is the whole thing. One command, no arguments, no environment file.
 
 A Makefile is provided as a convenience wrapper, and `make up` does the same
-thing plus a status print. The Makefile is **convenience only** — nothing
+thing plus an evidence-log clear and a status print. The Makefile is **convenience only** — nothing
 essential is hidden behind it, and every target is a one-line `docker compose`
 invocation you could type yourself (D-20).
 
@@ -63,16 +65,17 @@ invocation you could type yourself (D-20).
 | 9091 | `server-new` | direct access to the New box |
 | 9092 | `proxy` | **the migration endpoint** — transparent reverse proxy |
 | 9093 | `proxy` | the redirect listener — the other way of doing it |
+| 9094 | `status` | **the projected status page** — the surface the room watches |
 
 **Narration mnemonic:** *"90 is the Old box, 91 is the New box, 92 proxies, 93
-redirects."* Four adjacent numbers, monotonic, and the "92 proxies / 93
-redirects" pairing is the one line that keeps them straight while you talk.
+redirects, 94 shows you."* Five adjacent numbers, monotonic, and the "92 proxies
+/ 93 redirects" pairing is the one line that keeps them straight while you talk.
 
 The direct backend ports exist for a reason beyond convenience: they let you say
 "here are two separate boxes" *before* nginx enters the story, and they give the
 301 redirect a real, reachable destination to point at (D-05).
 
-All four are bound to `127.0.0.1` only. The rig is never offered to conference
+All five are bound to `127.0.0.1` only. The rig is never offered to conference
 wifi.
 
 ---
@@ -167,6 +170,10 @@ handover, and issues one confirming request:
 curl -fsS http://localhost:9092/whoami  ->  NEW server-new
 ```
 
+That confirming request exists to seed the status page's traffic reading for the
+take that is *starting*. `make flip-old` is the reset direction and therefore
+issues no request at all — it clears the evidence instead, and says so.
+
 Run the same command from anywhere — the host, the `client` container, a
 browser — and the URL is the one you always typed. That is the whole claim.
 
@@ -224,6 +231,171 @@ Phase 1's `make reset` is still there and still does a full teardown, but it is
 not the between-takes path: using it would undercut the "no teardown needed"
 claim the cutover is demonstrating.
 
+`make up` also clears the evidence. The log lives in a named volume that survives
+`docker compose down`, so without that a down-and-up cycle would resume a previous
+take's counters mid-count — which looks second-hand, which is the exact thing the
+reset exists to prevent. Raw `docker compose up -d --wait` still works standalone
+and simply inherits the prior log; `make clear-evidence` is the explicit lever.
+
+---
+
+## The status page — what the room watches (EVID-02, EVID-03)
+
+```
+http://localhost:9094/
+```
+
+**Put this on the projector before you start, and leave it there.** It is not a
+confidence monitor for you and it is not an after-the-fact artifact — it is the
+surface the audience is looking at while you flip. Full-screen it on the second
+display and then forget it exists.
+
+Three properties worth knowing before you rely on it:
+
+- **It refreshes itself once a second.** You never reach for a key mid-flip. The
+  flip lands on screen on its own (D-24).
+- **Nothing on it is clickable.** It is non-interactive by contract (D-24) — no
+  buttons, no links, no controls, no hover states. If something on it looks
+  clickable, that is a defect, because it teaches the room that you are driving
+  the page when you are not.
+- **It reads the evidence, it does not produce it.** Both of its mounts are
+  read-only. The tier that reports the evidence provably cannot alter it, which
+  is what makes the reading believable rather than merely nice.
+
+### The two readings, and why they are deliberately separate
+
+The page shows two things, one above the other, never merged:
+
+```
+CONFIG SAYS      [ NEW ]        <- what the file on disk selects
+                                <- the sync marker sits between them
+TRAFFIC SHOWS     O L D         <- what the access log actually recorded
+```
+
+**`CONFIG SAYS`** is read from `proxy/active-backend.conf` — your stated intent,
+the moment you save the file. **`TRAFFIC SHOWS`** is read from the proxy's access
+log — what nginx actually did, which is a different question and, for a few
+seconds, a different answer.
+
+Between the two sits a marker carrying one of three captions:
+
+| Marker | Meaning |
+|--------|---------|
+| `IN SYNC` | The running config and the observed traffic agree |
+| `WAITING FOR RELOAD` | The file has changed and nginx has not picked it up yet |
+| `AWAITING FIRST REQUEST` | The evidence is empty — nothing has been served yet |
+
+**That gap is the demo.** Edit the file and the top reading flips to `NEW` while
+the bottom one still says `OLD` and the marker starts pulsing; reload, and the
+room watches the two readings converge. The gap is visible for exactly as long as
+the reload takes, and closing it in front of the audience is the most instructive
+part of the whole mechanism.
+
+A single merged "ACTIVE: NEW" reading was considered and **rejected** (D-27). It
+is smaller and it is worse: it hides the one moment that explains how a cutover
+actually works. Do not "simplify" the two readings into one.
+
+The most dramatic way to show this is the live-edit path: open
+`proxy/active-backend.conf` on screen, change the word by hand, let the room see
+`CONFIG SAYS NEW` sitting above `TRAFFIC SHOWS OLD`, talk over it for a beat, then
+`make reload`.
+
+### What it does when it cannot tell
+
+If the proxy is down, or the config is unreadable, or the log is gone, the page
+goes to an unmistakable **UNAVAILABLE** state: the whole surface desaturates,
+gains a diagonal hazard border no other state has, blanks *both* readings and both
+counters to em-dashes, and replaces the request table with a line naming which
+source failed and why.
+
+It never shows a stale-but-plausible backend. That is a feature, not a bug: a page
+confidently reading `OLD` while nginx is dead is strictly worse than one admitting
+it cannot tell — particularly with an audience watching, because the first one
+makes a liar of you and the second one does not (D-28).
+
+There is no half-lit state either. If it cannot read *one* of its sources it goes
+fully unavailable rather than rendering a live traffic reading beside a blank
+config, which would look like a working page and would not be one.
+
+### The four states
+
+| State | What you see |
+|-------|--------------|
+| **Normal** | Both readings live, the request table filling, the counters moving |
+| **No traffic yet** | Readings blanked to em-dashes, `AWAITING FIRST REQUEST` — the state just after a reset |
+| **Unavailable** | Desaturated, hazard-bordered, every reading blank, the failing source named |
+| **Evidence cleared** | A 10-second confirmation overlay along the bottom, everything beneath it reset to zero |
+
+They are pairwise distinguishable from across a room with no caption, which is the
+point: you should never have to explain to the audience what they are looking at.
+
+### Between takes, on screen
+
+`make flip-old` is the between-takes reset (D-36) and the status page is where you
+confirm it landed. It puts the rig back on OLD **and** truncates the evidence, so
+the counters, the request table, the flip boundary and the since-flip clock all go
+to zero at once — the status service holds no state of its own, so they reset
+atomically. An `EVIDENCE CLEARED` overlay confirms it for ten seconds. **No
+container is restarted**, which is the point CUT-05 exists to make.
+
+The reset direction deliberately issues **no** confirming request of its own. A
+request there would move the traffic reading for a few hundred milliseconds before
+the truncation caught up, and the page — correctly — would fire the flip animation
+for it. Spending the money shot on a reset is a small thing that looks like a bug
+from the tenth row, so the reset seeds nothing and therefore requests nothing.
+
+### When something goes wrong
+
+Two failure modes are worth knowing by heart, because they are the two you will
+actually hit.
+
+**The flip refuses.**
+
+```
+REFUSING TO FLIP: server-new is not answering /healthz.
+```
+
+A backend is not up. Nothing has been modified — `proxy/active-backend.conf` is
+byte-identical and nginx is untouched, so you can say "the check stopped it" and
+mean it. Recover with:
+
+```bash
+docker compose up -d --wait server-new     # or server-old
+```
+
+Then run the flip again. See the section above for why one dead backend blocks the
+flip in *both* directions.
+
+**The sync marker pulses and never resolves.** `CONFIG SAYS` has moved and
+`TRAFFIC SHOWS` has not followed. The file changed but nginx did not pick it up —
+the reload did not take. **The terminal is where the reason is**, not the page: the
+flip prints the `nginx -t` result and the reload's exit status, and one of them
+will have failed. The page is reporting the situation correctly; it is telling you
+the truth about a reload that did not happen.
+
+If the page itself goes unavailable and stays there, check the fourth container:
+
+```bash
+docker compose ps status
+docker compose logs status
+```
+
+### One known asymmetry — carried from Phase 1, and intended
+
+**After the flip, port 9092 lands on NEW while port 9093 still redirects clients
+to the original backend on 9090.** The redirect listener does not follow the
+cutover.
+
+That is correct and it is worth saying out loud rather than being caught by it
+mid-demo: the proxy is the migration mechanism and the redirect is not. A redirect
+hands the client a new address and the client remembers it — often
+*indefinitely*, since a 301 is cacheable by specification — so it cannot be moved
+back and forth the way an upstream can. The contrast is the whole point of having
+both ports.
+
+The status page counts only 9092 traffic for the same reason: counting the
+redirect listener would misreport the cutover, since it never moved.
+
 ---
 
 ## What "the client never changes" means (HTTP-02 — the verification contract)
@@ -262,7 +434,7 @@ docker compose exec client curl -sS http://app.demo.test:9092/whoami
 
 | Target | What it does |
 |--------|--------------|
-| `make up` | `docker compose up -d --build --wait`, then a status print |
+| `make up` | `docker compose up -d --build --wait`, clear the evidence log, then a status print |
 | `make down` | `docker compose down` — stops the rig, keeps the images |
 | `make status` | service/status/ports table, plus an `/etc/hosts` check with the exact fix line if missing |
 | `make check` | alias for `status` |
@@ -272,7 +444,7 @@ docker compose exec client curl -sS http://app.demo.test:9092/whoami
 | `make flip-new` | cut over to the New box explicitly |
 | `make flip-old` | cut back to the Old box **and clear the evidence** — the between-takes reset |
 | `make clear-evidence` | truncate the evidence log without flipping |
-| `make test` | the full smoke suite (`sh scripts/smoke.sh`) |
+| `make test` | the full smoke suite (`sh scripts/smoke.sh`) — four sections, including the cutover and the UI token audit |
 | `make contrast` | the proxied-vs-redirected side-by-side, two labelled lines |
 | `make reload` | `nginx -t`, then a graceful `nginx -s reload`, then a verifying request — never a container restart |
 | `make reset` | full teardown and rebuild, **and** restore of the flip include to OLD |
@@ -284,8 +456,10 @@ host files, so a previous take's flip would otherwise leave the demo opening on
 NEW. Together they guarantee a byte-identical clean starting state on every run
 (D-21).
 
-Every target is a thin wrapper. `sh scripts/smoke.sh [backends|proxy|redirect]`
-runs a single section if you want a faster loop.
+Every target is a thin wrapper. `sh scripts/smoke.sh [backends|proxy|redirect|cutover]`
+runs a single section if you want a faster loop. `cutover` is the slow one — it
+flips repeatedly, stops and restarts containers, and puts the rig back on OLD when
+it finishes.
 
 ---
 
@@ -297,8 +471,11 @@ runs a single section if you want a faster loop.
 ├── Makefile                      # the presenter's command surface
 ├── README.md                     # you are here
 ├── proxy/
-│   ├── nginx.conf                # upstreams, log format, the 9092 proxy and the 9093 redirect
+│   ├── nginx.conf                # upstreams, log formats, the 9092 proxy, the 9093 redirect, the 8081 oracle
 │   └── active-backend.conf       # <- THE ONE FILE THE CUTOVER EDITS (5 lines)
+├── status/
+│   ├── status.py                 # the evidence service — recomputes everything per request, holds no state
+│   └── index.html                # the projected page: one file, no build step, no external reference
 ├── backend/
 │   ├── Dockerfile                # one image, instantiated twice
 │   ├── entrypoint.sh             # renders templates, generates host keys, execs supervisord
@@ -309,7 +486,7 @@ runs a single section if you want a faster loop.
 ├── client/
 │   └── Dockerfile                # the in-network command source (curl, ssh)
 └── scripts/
-    ├── flip.sh                   # the cutover: gate, rewrite, validate, reload, prove
+    ├── flip.sh                   # the cutover: gate, rewrite, validate, reload, prove, confirm-or-reset
     └── smoke.sh                  # every mechanically checkable requirement
 ```
 

@@ -920,8 +920,21 @@ section_cutover() {
 	# Phase 1's control, re-asserted after Phase 2's additions. The escalation
 	# token may appear in README prose and in `make status`'s printed remediation
 	# line; it may never appear in a recipe position.
-	assert "T-02-16 no executable line in the Makefile, the scripts or compose escalates privilege" \
-		'test "$(grep -v "^[[:space:]]*#" Makefile scripts/flip.sh scripts/smoke.sh compose.yaml | grep "sudo" | grep -vc "echo")" = "0"'
+	# Two assertions rather than one. The first pins the executable trio to a
+	# single occurrence — the printed remediation line and nothing else — and is
+	# exact. The second covers this file, where an exact count is impossible
+	# because the audit necessarily names the token it audits; there the rule is
+	# that any occurrence must sit on a line that also prints.
+	assert "T-02-16 the Makefile, flip.sh and compose carry exactly one escalation token" \
+		'test "$(grep -v "^[[:space:]]*#" Makefile scripts/flip.sh compose.yaml | grep -c "sudo")" = "1"'
+	assert "T-02-16 and that one occurrence is inside a printed remediation line, not a recipe" \
+		'test "$(grep -v "^[[:space:]]*#" Makefile scripts/flip.sh compose.yaml | grep "sudo" | grep -cE "(echo|printf)")" = "1"'
+	# And nowhere in the four files does the token appear in a RECIPE position —
+	# first word of a line, or first word after a pipe or a command separator.
+	# This one is stated structurally rather than by counting, so it holds for
+	# this file too without the audit tripping over its own text.
+	assert "T-02-16 the escalation token never appears in a command position anywhere" \
+		'test "$(grep -cE "(^[[:space:]]*|[;&(] *)sudo " Makefile scripts/flip.sh scripts/smoke.sh compose.yaml | grep -vc ":0$")" = "0"'
 
 	# ---- leave the rig the way the presenter expects to find it ----
 	sh scripts/flip.sh old >/dev/null 2>&1
