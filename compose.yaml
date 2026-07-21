@@ -1,0 +1,56 @@
+# compose.yaml — ENV-01: the whole rig, one command.
+# No `version:` key — obsolete in Compose v2+ and it emits a warning.
+name: demo
+
+services:
+  # D-16: server-old and server-new are the SAME image. The only difference
+  # between them is BACKEND_ID. That is what makes "the only thing that
+  # changed is which server answered" an honest claim.
+  server-old:
+    build: ./backend
+    image: demo-backend:1
+    hostname: server-old
+    init: true                      # tini as PID 1 under supervisord
+    environment:
+      BACKEND_ID: OLD
+      BACKEND_COLOR: "#b45309"
+    # Loopback-bound on purpose: the browser reaches this via D-03's
+    # /etc/hosts mapping of app.demo.local -> 127.0.0.1, so binding 0.0.0.0
+    # would only offer the rig to conference wifi for no benefit (T-01-06).
+    ports: ["127.0.0.1:9090:80"]
+    # Load-bearing, not decorative: plan 01-02's proxy gates on
+    # `condition: service_healthy` because nginx refuses to start when an
+    # upstream hostname does not yet resolve (RESEARCH Pitfall 4).
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost/healthz"]
+      interval: 3s
+      timeout: 2s
+      retries: 10
+      start_period: 3s
+
+  server-new:
+    image: demo-backend:1           # no build: — same image, not a second build (D-16)
+    depends_on: [server-old]        # ensures the image is built before this starts
+    hostname: server-new
+    init: true
+    environment:
+      BACKEND_ID: NEW
+      BACKEND_COLOR: "#15803d"
+    ports: ["127.0.0.1:9091:80"]
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost/healthz"]
+      interval: 3s
+      timeout: 2s
+      retries: 10
+      start_period: 3s
+
+  # D-02: a command source, not a service. No published ports. From Phase 3
+  # this is the canonical SSH source — it reaches the backends entirely over
+  # the Docker network, so no host port 22 binding is ever needed.
+  client:
+    build: ./client
+    command: ["sleep", "infinity"]
+
+# Container port 22 is published NOWHERE in this phase (D-15). The image
+# carries a `demo:demo` credential; keeping it off the host is threat
+# T-01-02's mitigation.
