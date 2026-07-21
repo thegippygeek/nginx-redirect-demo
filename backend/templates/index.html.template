@@ -1,0 +1,20 @@
+<!doctype html>
+<!-- backend/templates/index.html.template — D-10, readable across a room.
+     The WORD carries the signal; the colour only reinforces it, so a
+     colour-blind viewer or a monochrome projector still gets OLD vs NEW. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>${BACKEND_ID}</title>
+<style>
+  body{margin:0;font-family:system-ui,sans-serif;background:${BACKEND_COLOR};color:#fff;
+       display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh}
+  h1{font-size:22vw;margin:0;letter-spacing:.05em}
+  p{font-size:3vw;opacity:.9;margin:.3em}
+</style>
+</head>
+<body>
+<h1>${BACKEND_ID}</h1>
+<p>hostname: ${BACKEND_HOSTNAME}</p>
+</body>
+</html>

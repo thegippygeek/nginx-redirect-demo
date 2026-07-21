@@ -1,0 +1,20 @@
+# backend/templates/default.conf.template
+# Rendered by /entrypoint.sh via envsubst with an explicit three-variable
+# allowlist. ${...} tokens are substituted; $... nginx variables are not.
+server {
+    listen 80 default_server;
+    server_name _;
+
+    add_header X-Backend      "${BACKEND_ID}" always;   # envsubst-rendered (D-11)
+    add_header X-Backend-Host "$hostname"     always;   # nginx variable, untouched
+
+    root /usr/share/nginx/html;
+    location / { index index.html; }
+
+    location = /healthz { access_log off; default_type text/plain; return 200 "ok\n"; }
+
+    # Fixed two-field order — identity, single space, hostname, single newline.
+    # The anchored smoke assertions ^OLD server-old$ / ^NEW server-new$ depend
+    # on this exact shape (BACK-03 ordering edge).
+    location = /whoami  { default_type text/plain; return 200 "${BACKEND_ID} $hostname\n"; }
+}
