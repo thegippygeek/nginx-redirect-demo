@@ -903,6 +903,30 @@ section_cutover() {
 	assert "T-02-01 the rendered cells actually go through that funnel" \
 		'test "$(grep -o "txt(" status/index.html | wc -l | tr -d "[:space:]")" -ge 10'
 
+	# --- UI-SPEC long-text backstop: the truncation is real, not incidental ---
+	#
+	# A NOTE ON HOW TO TEST THIS BY HAND. The evidence log records `path` from
+	# $uri, which has the query string STRIPPED ($request_uri keeps it, in a
+	# separate field). So `/whoami?trace=<something very long>` logs as `/whoami`
+	# — 7 characters — and any "long path" check driven that way passes without
+	# ever reaching the 28-character threshold. Use a long path SEGMENT:
+	#
+	#   curl -sS -o /dev/null http://localhost:9092/whoami/this-is-a-deliberately-long-path-segment-well-past-twenty-eight-characters
+	#
+	# The server deliberately stores the full string — truncating lossily at the
+	# source would destroy evidence — so truncation is a rendering concern, and
+	# these are its three prerequisites. `nowrap` is the load-bearing one: it is
+	# what guarantees the uniform row height the boundary rule's pixel position
+	# depends on.
+	assert "UI-SPEC long-text: rows clip rather than wrap" \
+		'grep -E "^\.row span\{" status/index.html | grep -q "overflow: *hidden" && grep -E "^\.row span\{" status/index.html | grep -q "white-space:nowrap"'
+	assert "UI-SPEC long-text: the path cell ends in an ellipsis" \
+		'grep -E "^\.row \.c-path\{" status/index.html | grep -q "text-overflow:ellipsis"'
+	assert "UI-SPEC long-text: the path column is a fixed width, so nothing reflows" \
+		'grep -q "grid-template-columns: .75rem 12.5rem 38.75rem 7.5rem 14rem;" status/index.html'
+	assert "UI-SPEC long-text: the renderer routes the path through the 28-char helper" \
+		'test "$(grep -c "var PATH_MAX = 28;" status/index.html)" = "1" && grep -q "shortPath(r.path)" status/index.html'
+
 	# --- D-22: the hostname, everywhere, in the reserved form ---
 	#
 	# The mDNS variant stalls host name resolution for about five seconds on the

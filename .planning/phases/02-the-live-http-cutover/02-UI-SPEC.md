@@ -421,7 +421,7 @@ D-26 item 2. The audit trail. The boundary must be a **line**, not scattered col
 |--------|-------|------|---------|
 | edge bar | 12px | — | Solid **`#ffffff`** fill, square cap for OLD / chamfered cap for NEW |
 | time | 200px | mono, Label 32px | `14:02:31` — HH:MM:SS, no date, no milliseconds |
-| path | 620px | mono, Label 32px | `/whoami` — truncated at 28ch with `…`, never wrapped |
+| path | 620px | mono, Label 32px | `/whoami` — truncated at 28ch with `…`, never wrapped. Truncation is client-side rendering; the server stores the full string, because truncating evidence at the source is lossy |
 | status | 120px | mono, Label 32px | `200` |
 | backend | 224px | ui, Label 32px, 700 | `OLD` / `NEW`, uppercase, right-aligned |
 
@@ -739,7 +739,7 @@ Applicable state considerations resolved: **12 covered, 2 backstop, 1 unresolved
 | zero-one-many | fewer than 4 pre-flip rows on a fresh take | ✅ covered | Pin is a ceiling: boundary sits at `min(3, post_flip_row_count)` and migrates down to index 3 as post-flip rows arrive. **No blank filler rows** — empty rows read as "still loading" on a projector |
 | empty | EVIDENCE CLEARED confirmation has no layout slot | ✅ covered | Rendered as a `position: fixed` overlay at `bottom: 48px`, z-above the footer, occluding it for 10 s. Declared and intended; nothing reflows because nothing moves |
 | overflow | counter exceeding 6 characters | ✅ covered | Compact notation (`1.0M`) at 7+ chars; tabular numerals prevent width jitter at every poll |
-| long-text | request path longer than 28 characters | 🧪 backstop | Truncate at 28ch with `…`, never wrap — a wrapped row breaks the 52px uniform row height and shifts the boundary rule's pixel position. Needs a visual check with a long real path (e.g. `/whoami?trace=…`) before sign-off |
+| long-text | request path longer than 28 characters | 🧪 backstop | Truncate at 28ch with `…`, never wrap — a wrapped row breaks the 52px uniform row height and shifts the boundary rule's pixel position. Needs a visual check with a long real path segment — **not** a query string. **CORRECTION (02-04):** the example originally given here, `/whoami?trace=…`, cannot exercise this rule. The evidence log records `path` from `$uri`, which has the query string stripped (`$request_uri` keeps it in a separate field), so that URL logs as `/whoami` — 7 characters — and the check passes vacuously without ever reaching the threshold. Use `/whoami/this-is-a-deliberately-long-path-segment-well-past-twenty-eight-characters`. RESOLVED 02-04: verified PASS |
 | zero-one-many | two or more flips inside the 8-row window | 🧪 backstop | Only the most recent boundary renders; two white rules would read as a striped table rather than as one event. Needs a visual check across a double-flip rehearsal (D-36 re-run) |
 | overflow | projector overscan cropping the 48px safe area | ⚠ unresolved | Assumption: 48px inset is sufficient for typical keystone/overscan. Cannot be verified without the actual venue projector. Planner treats as an assumption; if the venue crops harder, the safe margin is the single value to raise |
 

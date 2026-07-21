@@ -366,6 +366,13 @@ docker compose up -d --wait server-new     # or server-old
 Then run the flip again. See the section above for why one dead backend blocks the
 flip in *both* directions.
 
+**A request path is longer than the column.** It truncates with an ellipsis and
+never wraps, so every row keeps the same height and the flip boundary does not
+appear to move. Note that the table shows the path *without* its query string —
+that is the field nginx logs as the path, and the query string is recorded
+separately. If you want to demonstrate truncation on stage, use a long path
+segment (`/whoami/a-very-long-segment-…`), not a long `?query=…`.
+
 **The sync marker pulses and never resolves.** `CONFIG SAYS` has moved and
 `TRAFFIC SHOWS` has not followed. The file changed but nginx did not pick it up —
 the reload did not take. **The terminal is where the reason is**, not the page: the
