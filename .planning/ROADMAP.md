@@ -64,13 +64,13 @@ Plans:
   3. A status page shows which backend is currently active and lists recent requests with the backend that answered each
   4. Presenter can flip back to `server-old` and re-run the whole cutover without tearing anything down
 
-**Plans**: 4 plans
+**Plans**: 1/4 plans executed
 **UI hint**: yes
 
 Plans:
 **Wave 1**
 
-- [ ] 02-01-PLAN.md — The flip pipeline: gate both backends, rewrite the one word, print the diff, reload, prove via the `:8081` oracle, settle; plus the dual evidence log and the two log views (CUT-01/02/03/05, EVID-01)
+- [x] 02-01-PLAN.md — The flip pipeline: gate both backends, rewrite the one word, print the diff, reload, prove via the `:8081` oracle, settle; plus the dual evidence log and the two log views (CUT-01/02/03/05, EVID-01)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -123,7 +123,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Demo Up, HTTP Lands on OLD | 3/3 | Complete | 2026-07-21 |
-| 2. The Live HTTP Cutover | 0/4 | Planned | - |
+| 2. The Live HTTP Cutover | 1/4 | In Progress|  |
 | 3. SSH Through the Stream Proxy | 0/TBD | Not started | - |
 | 4. Host-Key Gotcha and the Presenter Walkthrough | 0/TBD | Not started | - |
 

@@ -37,15 +37,15 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Cutover
 
-- [ ] **CUT-01**: Presenter can switch the active backend from `server-old` to `server-new` by editing the nginx upstream and reloading
-- [ ] **CUT-02**: Cutover requires no change on the client side — same hostname, same ports, same commands
-- [ ] **CUT-03**: HTTP requests after the flip land on `server-new`, provable from the response body
+- [x] **CUT-01**: Presenter can switch the active backend from `server-old` to `server-new` by editing the nginx upstream and reloading
+- [x] **CUT-02**: Cutover requires no change on the client side — same hostname, same ports, same commands
+- [x] **CUT-03**: HTTP requests after the flip land on `server-new`, provable from the response body
 - [ ] **CUT-04**: SSH sessions opened after the flip land on `server-new`, provable from the login banner
-- [ ] **CUT-05**: Presenter can flip back to `server-old` to re-run the demo without a full teardown
+- [x] **CUT-05**: Presenter can flip back to `server-old` to re-run the demo without a full teardown
 
 ### Evidence
 
-- [ ] **EVID-01**: Presenter can tail nginx access logs live and see which upstream served each request
+- [x] **EVID-01**: Presenter can tail nginx access logs live and see which upstream served each request
 - [ ] **EVID-02**: A status page shows which backend is currently active
 - [ ] **EVID-03**: The status page shows recent requests and which backend answered them
 - [ ] **EVID-04**: A verify script issues an HTTP request and an SSH connection and reports which backend answered each
@@ -114,12 +114,12 @@ Which phases cover which requirements. Updated during roadmap creation.
 | SSH-01 | Phase 3 | Pending |
 | SSH-02 | Phase 3 | Pending |
 | SSH-03 | Phase 3 | Pending |
-| CUT-01 | Phase 2 | Pending |
-| CUT-02 | Phase 2 | Pending |
-| CUT-03 | Phase 2 | Pending |
+| CUT-01 | Phase 2 | Complete |
+| CUT-02 | Phase 2 | Complete |
+| CUT-03 | Phase 2 | Complete |
 | CUT-04 | Phase 3 | Pending |
-| CUT-05 | Phase 2 | Pending |
-| EVID-01 | Phase 2 | Pending |
+| CUT-05 | Phase 2 | Complete |
+| EVID-01 | Phase 2 | Complete |
 | EVID-02 | Phase 2 | Pending |
 | EVID-03 | Phase 2 | Pending |
 | EVID-04 | Phase 3 | Pending |
