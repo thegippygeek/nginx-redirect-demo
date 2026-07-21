@@ -157,7 +157,9 @@ body{
 .thead .h-time{ padding:0 var(--md); }
 .thead .h-backend{ text-align:right; }
 
-.tbody{ display:flex; flex-direction:column; }
+/* flex:1 lets the empty and error copy centre in the panel while real rows
+   still stack from the top. */
+.tbody{ display:flex; flex-direction:column; flex:1 1 auto; }
 
 /* Uniform height, always. A wrapped row would break the uniformity the
    boundary rule's pixel position depends on, which is why a long path is
@@ -226,7 +228,66 @@ body{
   letter-spacing:-.01em; font-variant-numeric: tabular-nums;
 }
 
-/* ------------------------------------------------------- 5. the footer */
+/* ---------------------------------------------- 5. UNAVAILABLE (D-28)
+   The page visibly LOSES ITS COLOUR, which no other state does, and gains a
+   border, which no other state has. The fill is a dead slate and never a hue:
+   NEW is green, and green/magenta-red is the exact axis ~8% of men cannot
+   resolve, so a hot failure fill beside a green success fill is the single
+   worst available choice. */
+.page.dead{ filter: saturate(0.15); }
+
+.hz{
+  position: fixed;
+  background: repeating-linear-gradient(45deg, #334155 0 24px, #0b0f14 24px 48px);
+  z-index:5;
+}
+.hz-t{ top:36px; left:36px; right:36px; height:12px; }
+.hz-b{ bottom:36px; left:36px; right:36px; height:12px; }
+.hz-l{ top:36px; bottom:36px; left:36px; width:12px; }
+.hz-r{ top:36px; bottom:36px; right:36px; width:12px; }
+
+.det{ font-size:var(--fs-meta); font-weight:400; color:var(--mut); }
+
+/* ------------------------------------- 6. the convergence sequence (900 ms)
+   One-shot, one direction, one flash. It fires on a change in the TRAFFIC
+   value only, so a false flash can never teach the room to distrust the
+   real one. */
+.hero.out{ animation: heroOut 250ms ease-in forwards; }
+.hero.in{ animation: heroIn 250ms ease-out; }
+@keyframes heroOut{ to{ transform:translateY(-40px); opacity:0 } }
+@keyframes heroIn{ from{ transform:translateY(40px); opacity:0 } to{ transform:none; opacity:1 } }
+.traffic.xfade{ transition: background-color 250ms linear; }
+.traffic.ring{ animation: ring 900ms ease-out forwards; }
+@keyframes ring{
+  0%{ box-shadow:0 0 0 6px rgba(255,255,255,0) }
+  17%{ box-shadow:0 0 0 6px rgba(255,255,255,1) }
+  100%{ box-shadow:0 0 0 6px rgba(255,255,255,0) }
+}
+
+/* Never "no indication at all": the slide and cross-fade go instant and the
+   pulse goes static, but the white ring becomes persistent instead of a fade. */
+@media (prefers-reduced-motion: reduce){
+  .pending .sync{ animation:none; }
+  .hero.out,.hero.in{ animation:none; }
+  .traffic.xfade{ transition:none; }
+  .traffic.ring{ animation:none; box-shadow:0 0 0 6px #fff; }
+}
+
+/* ------------------------------- 7. the EVIDENCE CLEARED confirmation (D-36)
+   An OVERLAY, not a layout element. There are zero spare pixels in the
+   vertical budget, so reclaiming space would reflow the evidence row up and
+   back down — the table and rail would visibly jump twice, which is exactly
+   the second-hand impression D-36 exists to prevent. Nothing underneath it
+   moves, because nothing underneath it changes. */
+.cleared{
+  position: fixed; left:48px; right:48px; bottom:48px; height:64px;
+  background:var(--panel); border:2px solid var(--line);
+  display:grid; place-items:center; z-index:10;
+  font-size:var(--fs-label); font-weight:700; letter-spacing:.08em; color:var(--fg);
+}
+[hidden]{ display:none !important; }
+
+/* ------------------------------------------------------- 8. the footer */
 .foot{
   display:flex; align-items:center; gap:var(--sm);
   font-size:var(--fs-meta); font-weight:400; color:var(--mut);
@@ -292,6 +353,14 @@ body{
 
 </div>
 
+<!-- Both live OUTSIDE .page: a filter on .page would become the containing
+     block for its fixed descendants and drag them into the desaturation. -->
+<div id="hazard" hidden>
+  <span class="hz hz-t"></span><span class="hz hz-b"></span>
+  <span class="hz hz-l"></span><span class="hz hz-r"></span>
+</div>
+<div class="cleared" id="cleared" hidden></div>
+
 <script>
 "use strict";
 /* ---------------------------------------------------------------- render
@@ -326,17 +395,93 @@ function renderConfig(data){
   txt(chip, data.config || EM);
 }
 
+/* The convergence sequence owns the banner while it runs, so the 1 s poll
+   cannot overwrite the word or the fill mid-flight. */
+var converging = false;
+var REDUCED = !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+var RING_MS = REDUCED ? 2000 : 900;
+var SLIDE_MS = REDUCED ? 0 : 250;
+
+function bannerClass(data){
+  if (data.state === "UNAVAILABLE") return "b-dead";
+  return backendClass(data.traffic);
+}
+function heroClass(data){
+  /* UNAVAILABLE is eleven characters and will not fit the Hero line. It drops
+     to Display, and that shrink is itself a signal something is wrong. */
+  if (data.state === "UNAVAILABLE") return "hero small";
+  return data.traffic ? "hero" : "hero muted";
+}
+function heroText(data){
+  if (data.state === "UNAVAILABLE") return "UNAVAILABLE";
+  return data.traffic || EM;
+}
+
 function renderTraffic(data){
   var banner = $("traffic"), hero = $("heroWord"), sub = $("trafficSub");
-  banner.className = "traffic " + backendClass(data.traffic);
-  hero.className = "hero" + (data.traffic ? "" : " muted");
-  txt(hero, data.traffic || EM);
-  if (data.traffic){
+  if (data.state === "UNAVAILABLE"){
+    txt(sub, "");
+  } else if (data.traffic){
     txt(sub, "last answered by " + (data.traffic_host || data.traffic) +
              " · " + (data.traffic_at || ""));
   } else {
     txt(sub, "NO TRAFFIC OBSERVED YET");
   }
+  if (converging) return;
+  banner.className = "traffic " + bannerClass(data);
+  hero.className = heroClass(data);
+  txt(hero, heroText(data));
+}
+
+/* Guarded so it cannot fire on page load, on the first poll after startup, on
+   recovery from UNAVAILABLE, or after an evidence reset — in all four cases
+   the value "changed" but no flip occurred. */
+var prevTraffic = null;
+function shouldConverge(data){
+  var cur = data.state === "UNAVAILABLE" ? "UNAVAILABLE" : (data.traffic || null);
+  var fire = prevTraffic !== null && cur !== null &&
+             cur !== prevTraffic &&
+             prevTraffic !== "UNAVAILABLE" && cur !== "UNAVAILABLE";
+  prevTraffic = cur;
+  return fire;
+}
+
+var convTimers = [];
+function later(fn, ms){ convTimers.push(setTimeout(fn, ms)); }
+
+function converge(data){
+  var banner = $("traffic"), hero = $("heroWord");
+  converging = true;
+  banner.classList.add("xfade");
+  banner.classList.remove("ring");
+  void banner.offsetWidth;            /* restart the one-shot cleanly */
+  banner.classList.add("ring");
+  hero.classList.add("out");
+  later(function(){
+    txt(hero, heroText(data));
+    hero.className = heroClass(data) + " in";
+    banner.className = "traffic xfade ring " + bannerClass(data);
+  }, SLIDE_MS);
+  later(function(){ hero.className = heroClass(data); }, SLIDE_MS * 2 + 50);
+  later(function(){
+    banner.className = "traffic " + bannerClass(data);
+    converging = false;
+  }, RING_MS);
+}
+
+/* `flip.sh old` issues a real confirming request on OLD and only THEN truncates
+   the evidence, so the traffic reading genuinely changes for the few hundred
+   milliseconds in between and a poll can land inside that window. The page
+   cannot see the truncation coming, so the sequence is made cancellable
+   instead: the moment the reset is recognised the flash is torn down and the
+   banner repainted, and no convergence ever completes across a reset. */
+function abortConverge(){
+  if (!converging) return;
+  for (var i = 0; i < convTimers.length; i++) clearTimeout(convTimers[i]);
+  convTimers = [];
+  converging = false;
+  $("heroWord").className = "hero";
+  $("traffic").className = "traffic";
 }
 
 var SYNC_CAP = {
@@ -397,9 +542,29 @@ function emptyEl(){
 
 /* The table shrinks to its REAL content. Three rows and a boundary is three
    rows and a boundary, never three rows plus four blank ones. */
+/* Rows are REPLACED under failure, never frozen. Leaving the last-known rows
+   on screen under a desaturation filter is exactly the stale-but-plausible
+   artefact D-28 forbids. */
+var ERR_BODY = {
+  log: "Cannot read the proxy access log. Not showing a stale reading.",
+  config: "Cannot read the active-backend config. Not showing a stale reading.",
+  "log+config": "Cannot read the proxy access log or the active-backend config. Not showing a stale reading.",
+  proxy: "Cannot reach the proxy. Not showing a stale reading.",
+  status: "Cannot reach the status service. Not showing a stale reading."
+};
+
+function errorEl(data){
+  var wrap = el("div", "empty");
+  wrap.appendChild(el("div", "eb", ERR_BODY[data.failing_source] || ERR_BODY.log));
+  if (data.detail) wrap.appendChild(el("div", "det", data.detail));
+  wrap.appendChild(el("div", "det", "Check: docker compose ps proxy"));
+  return wrap;
+}
+
 function renderTable(data){
   var body = $("tbody");
   clear(body);
+  if (data.state === "UNAVAILABLE"){ body.appendChild(errorEl(data)); return; }
   var rows = data.rows || [];
   if (!rows.length){ body.appendChild(emptyEl()); return; }
   /* boundary.row_index is the count of rows rendered ABOVE the boundary and is
@@ -432,6 +597,12 @@ function fmtSince(s){
 }
 
 function renderRail(data){
+  if (data.state === "UNAVAILABLE"){
+    /* Blanked, never the last values. */
+    txt($("cOld"), EM); txt($("cNew"), EM);
+    txt($("flipLbl"), "NO FLIP YET"); txt($("flipVal"), EM);
+    return;
+  }
   var c = data.counts || { OLD: 0, NEW: 0 };
   txt($("cOld"), fmtCount(c.OLD));
   txt($("cNew"), fmtCount(c.NEW));
@@ -462,11 +633,38 @@ function beat(){
 }
 
 /* --------------------------------------------------------------- the poll */
+/* The between-takes reset (D-36): a transition INTO the no-traffic state with
+   both counters at zero, after traffic had previously been observed. Without
+   the confirmation a presenter mid-reset cannot tell "the reset worked" from
+   "the page is broken". */
+var hadTraffic = false;
+var clearedTimer = null;
+function detectCleared(data){
+  var c = data.counts || {};
+  var empty = data.state === "NO_TRAFFIC" && !c.OLD && !c.NEW;
+  if (empty && hadTraffic){
+    abortConverge();
+    var strip = $("cleared");
+    txt(strip, "EVIDENCE CLEARED · " + (data.served_at || "") + " · READY FOR NEXT TAKE");
+    strip.hidden = false;
+    if (clearedTimer) clearTimeout(clearedTimer);
+    clearedTimer = setTimeout(function(){ strip.hidden = true; }, 10000);
+  }
+  if (empty) hadTraffic = false;
+  else if (data.state === "OK" && data.traffic) hadTraffic = true;
+}
+
 function render(data){
   if (data.log_path) lastLogPath = data.log_path;
   lastData = data;
+  var dead = data.state === "UNAVAILABLE";
+  $("page").classList.toggle("dead", dead);
+  $("hazard").hidden = !dead;
+  detectCleared(data);
+  var fire = shouldConverge(data);
   renderConfig(data);
   renderTraffic(data);
+  if (fire) converge(data);
   renderSync(data);
   renderTable(data);
   renderRail(data);
