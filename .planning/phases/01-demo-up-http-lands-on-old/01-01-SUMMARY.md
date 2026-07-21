@@ -1,3 +1,5 @@
+> **SUPERSEDED HOSTNAME:** every `app.demo.local` reference below reads `app.demo.test` as of 2026-07-21. `.local` is RFC 6762-reserved for multicast DNS; macOS routed it to an unreachable mDNS resolver under Tailscale, stalling every `getaddrinfo` for 5s. See `01-CONTEXT.md` D-22. This document is left otherwise unedited as a historical record.
+
 ---
 phase: 01-demo-up-http-lands-on-old
 plan: 01

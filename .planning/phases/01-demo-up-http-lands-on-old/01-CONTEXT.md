@@ -19,10 +19,11 @@ Requirements: ENV-01, ENV-02, ENV-03, ENV-04, BACK-01, BACK-02, BACK-03, HTTP-01
 
 ### Client-facing story
 
-- **D-01:** The demo uses a real-looking hostname, `app.demo.local`, not `localhost`. The "hostname stayed the same" claim is the point of the demo and `localhost` undermines it.
-- **D-02:** A `client` container is part of the compose stack. It resolves `app.demo.local` via Docker's own DNS / `extra_hosts` and is the source of `curl` (and, in Phase 3, `ssh`) commands. Presenter runs e.g. `docker compose exec client curl http://app.demo.local:9092`.
-- **D-03:** The presenter's host machine also gets an `/etc/hosts` entry mapping `app.demo.local` → `127.0.0.1`. This is a documented one-time setup step. Rationale: the browser runs on the host and cannot see Docker's internal DNS — without this the browser and the client container would be using two different names on stage, which muddies the story.
+- **D-01:** The demo uses a real-looking hostname, `app.demo.test`, not `localhost`. The "hostname stayed the same" claim is the point of the demo and `localhost` undermines it.
+- **D-02:** A `client` container is part of the compose stack. It resolves `app.demo.test` via Docker's own DNS / `extra_hosts` and is the source of `curl` (and, in Phase 3, `ssh`) commands. Presenter runs e.g. `docker compose exec client curl http://app.demo.test:9092`.
+- **D-03:** The presenter's host machine also gets an `/etc/hosts` entry mapping `app.demo.test` → `127.0.0.1`. This is a documented one-time setup step. Rationale: the browser runs on the host and cannot see Docker's internal DNS — without this the browser and the client container would be using two different names on stage, which muddies the story.
 - **D-04:** Both clients therefore use the identical hostname. This is deliberate and load-bearing for the narrative.
+- **D-22 (2026-07-21, supersedes the original hostname choice):** The demo hostname is `app.demo.test`, **not** `app.demo.local`. `.local` is reserved by RFC 6762 for multicast DNS, and macOS routes every `.local` lookup to mDNSResponder (`scutil --dns` resolver #4, `options: mdns`, `timeout: 5`) instead of resolving it through the normal path. With Tailscale's DNS takeover active on the presenter's machine that resolver reports `reach: Not Reachable`, so `getaddrinfo` — which is what `curl` and every browser use — stalls for the full 5 seconds and then fails, even though `/etc/hosts` has a correct entry and `ping`/`dscacheutil` resolve it fine. Measured on this machine: a `.local` lookup took **5.03s**, the same lookup under `.test` took **0.05s**. `.test` is reserved by RFC 6761 for exactly this purpose, never reaches real DNS, is never routed to mDNS, and does not collide with the tailnet search domains (`unicorn-bee.ts.net`, `ts.net`, `lan`). Using Tailscale MagicDNS instead was considered and rejected: MagicDNS issues machine names (`tonys-macbook-pro.unicorn-bee.ts.net`), not service names, which undercuts the "the hostname never changed" narrative; it does not resolve inside the Docker bridge network, so D-02's client container would still need a second mechanism; and it would require rebinding the published ports off `127.0.0.1`, exposing the demo — and, from Phase 3, an sshd with demo credentials — to the entire tailnet (threat T-01-06).
 
 ### Network exposure
 
@@ -112,7 +113,7 @@ None — this phase creates the whole rig.
 <specifics>
 ## Specific Ideas
 
-- Hostname is `app.demo.local`. Chosen so it reads like a real service name rather than a test artifact.
+- Hostname is `app.demo.test`. Chosen so it reads like a real service name rather than a test artifact.
 - The OLD/NEW page banner should be big and colour-coded — the presenter should be able to stand back from the screen and have the audience call out which server answered.
 - `make flip` (Phase 2) is intended to be the memorable money-shot command; Phase 1 should name its targets consistently so that lands well.
 - Direct backend access exists so the presenter can say "here are two separate boxes" *before* nginx enters the story.

@@ -15,7 +15,7 @@ services:
       BACKEND_ID: OLD
       BACKEND_COLOR: "#b45309"
     # Loopback-bound on purpose: the browser reaches this via D-03's
-    # /etc/hosts mapping of app.demo.local -> 127.0.0.1, so binding 0.0.0.0
+    # /etc/hosts mapping of app.demo.test -> 127.0.0.1, so binding 0.0.0.0
     # would only offer the rig to conference wifi for no benefit (T-01-06).
     ports: ["127.0.0.1:9090:80"]
     # Load-bearing, not decorative: plan 01-02's proxy gates on
@@ -63,7 +63,7 @@ services:
         # to this container through Docker's embedded DNS. Deliberately NOT
         # `extra_hosts: host-gateway`, which resolved to IPv6 and routed the
         # client out to the host and back in, hiding its real IP from the log.
-        aliases: [app.demo.local]
+        aliases: [app.demo.test]
     # LOAD-BEARING, not decorative. nginx resolves `upstream ... server <name>`
     # at config-PARSE time and aborts with `host not found in upstream` if
     # Docker DNS cannot answer yet. Without this gate `docker compose up` fails

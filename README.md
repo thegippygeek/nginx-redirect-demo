@@ -15,14 +15,14 @@ through the proxy, alongside the 301-redirect approach for contrast.
 
 ## One-time setup — a prerequisite, not a startup step
 
-Your host machine needs `app.demo.local` to resolve to `127.0.0.1`:
+Your host machine needs `app.demo.test` to resolve to `127.0.0.1`:
 
 ```bash
-echo '127.0.0.1  app.demo.local' | sudo tee -a /etc/hosts
+echo '127.0.0.1  app.demo.test' | sudo tee -a /etc/hosts
 ```
 
 **Why this exists.** The browser runs on your host, outside Docker, and cannot
-query Docker's embedded DNS. The `client` container resolves `app.demo.local`
+query Docker's embedded DNS. The `client` container resolves `app.demo.test`
 through Docker DNS for free; the browser cannot. Without the `/etc/hosts` line
 the browser and the `client` container would be using two different names on
 stage — and "the hostname never changed" is the exact claim this demo rests on.
@@ -91,12 +91,12 @@ straight to the target without ever contacting nginx — no 301 appears in the
 log, and the demo looks broken on stage. A private window, or devtools with
 "Disable cache" ticked, avoids it entirely.
 
-1. Visit **`http://app.demo.local:9092/`** — the amber **OLD** banner appears.
-   The URL bar still reads `app.demo.local:9092`, exactly what you typed.
+1. Visit **`http://app.demo.test:9092/`** — the amber **OLD** banner appears.
+   The URL bar still reads `app.demo.test:9092`, exactly what you typed.
    *Someone answered on your behalf and you cannot tell.*
 
-2. Visit **`http://app.demo.local:9093/`** — the same amber **OLD** banner, but
-   the URL bar has visibly changed to `app.demo.local:9090`.
+2. Visit **`http://app.demo.test:9093/`** — the same amber **OLD** banner, but
+   the URL bar has visibly changed to `app.demo.test:9090`.
    *You were told to go somewhere else, and you went.*
 
 Put the two tabs side by side. The difference in the URL bar is the entire
@@ -113,7 +113,7 @@ make contrast
 PROXIED   9092 ->
   final=http://localhost:9092/whoami  redirects=0
 REDIRECT  9093 ->
-  final=http://app.demo.local:9090/whoami  redirects=1
+  final=http://app.demo.test:9090/whoami  redirects=1
 ```
 
 Two labelled lines, one command — the technical backup view for when a projector
@@ -122,7 +122,7 @@ the 301-caching trap above and can be run as many times as you like.
 
 Note: the redirect target is reachable from the **host browser** (via the
 `/etc/hosts` entry plus the published 9090), but **not** from inside the `client`
-container, where `app.demo.local` resolves to the proxy — which does not listen
+container, where `app.demo.test` resolves to the proxy — which does not listen
 on 9090. Do not demo the redirect from inside the client container; the browser
 is its home.
 
@@ -139,7 +139,7 @@ The evidence:
 
 - `curl -w '%{url_effective}'` with `-L` returns the URL that was typed
 - `curl -w '%{num_redirects}'` returns `0` — nothing moved the client
-- the proxy access log records `app.demo.local:9092` as the host and port the
+- the proxy access log records `app.demo.test:9092` as the host and port the
   client asked for, and that field stays constant across the Phase 2 flip
 
 **HTTP-02 is NOT verified via the client's source IP** — and this is not a
@@ -154,8 +154,8 @@ Practical note: if you want a meaningful source address in the log, issue the
 request from the `client` container, where the real container IP is preserved:
 
 ```bash
-docker compose exec client curl -sS http://app.demo.local:9092/whoami
-# proxy log: 172.19.0.5 -> app.demo.local:9092 "GET /whoami HTTP/1.1" 200 ... backend=OLD
+docker compose exec client curl -sS http://app.demo.test:9092/whoami
+# proxy log: 172.19.0.5 -> app.demo.test:9092 "GET /whoami HTTP/1.1" 200 ... backend=OLD
 ```
 
 ---

@@ -82,8 +82,8 @@ created: 2026-07-21
 | Behavior | Requirement | Why Manual | Test Instructions |
 |----------|-------------|------------|-------------------|
 | No cloud account, credentials, or cost | ENV-03 | Absence of a dependency is not meaningfully automatable | Inspect repo: no registry auth, no cloud SDK, no secrets, no `.env` with credentials. Confirm `docker compose up` succeeds on a machine with no cloud CLI configured. |
-| URL bar stays put on proxy, changes on redirect | HTTP-04 / D-07 | The decisive proof is visual — a browser URL bar. `curl` covers the mechanism; only a browser covers the demo claim. | Open `http://app.demo.local:9092/` — URL bar unchanged. Open `http://app.demo.local:9093/` — URL bar visibly changes to the backend's address. |
-| Host `/etc/hosts` entry present | D-03 | Host-machine state, outside the container boundary | `grep app.demo.local /etc/hosts` on the presenter's machine returns a line mapping to `127.0.0.1`. Documented as a one-time setup step. |
+| URL bar stays put on proxy, changes on redirect | HTTP-04 / D-07 | The decisive proof is visual — a browser URL bar. `curl` covers the mechanism; only a browser covers the demo claim. | Open `http://app.demo.test:9092/` — URL bar unchanged. Open `http://app.demo.test:9093/` — URL bar visibly changes to the backend's address. |
+| Host `/etc/hosts` entry present | D-03 | Host-machine state, outside the container boundary | `grep app.demo.test /etc/hosts` on the presenter's machine returns a line mapping to `127.0.0.1`. Documented as a one-time setup step. |
 
 ---
 

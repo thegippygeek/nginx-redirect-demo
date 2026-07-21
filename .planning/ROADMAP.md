@@ -45,7 +45,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [x] 01-02-PLAN.md — nginx joins the stack: transparent reverse proxy on 9092 landing on `server-old` via `app.demo.local`, plus the flip include, log format, and invalid-selector guard (ENV-04, HTTP-01/02)
+- [x] 01-02-PLAN.md — nginx joins the stack: transparent reverse proxy on 9092 landing on `server-old` via `app.demo.test`, plus the flip include, log format, and invalid-selector guard (ENV-04, HTTP-01/02)
 
 **Wave 3** *(blocked on Wave 2 completion)*
 

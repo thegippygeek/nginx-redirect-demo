@@ -20,7 +20,7 @@ down:
 
 status:
 	docker compose ps --format 'table {{.Service}}\t{{.Status}}\t{{.Ports}}'
-	@grep -q 'app.demo.local' /etc/hosts && echo "hosts: OK  app.demo.local -> 127.0.0.1" || echo "hosts: MISSING — one-time setup (D-03), run:  echo '127.0.0.1  app.demo.local' | sudo tee -a /etc/hosts"
+	@grep -q 'app.demo.test' /etc/hosts && echo "hosts: OK  app.demo.test -> 127.0.0.1" || echo "hosts: MISSING — one-time setup (D-03), run:  echo '127.0.0.1  app.demo.test' | sudo tee -a /etc/hosts"
 
 check: status
 
@@ -53,7 +53,7 @@ reset:
 # (RESEARCH Pitfall 7): curl does not cache.
 #
 # --resolve is what lets this run BEFORE the D-03 /etc/hosts step. The redirect
-# target is a literal app.demo.local:9090, so following it needs that name to
+# target is a literal app.demo.test:9090, so following it needs that name to
 # resolve; --resolve supplies it for this one invocation only, touching no host
 # state. Without it the hop dies with "Could not resolve host" on a machine that
 # has not done the prerequisite yet. It changes nothing the demo claims — the
@@ -62,7 +62,7 @@ contrast:
 	@echo "PROXIED   9092 -> "
 	@curl -sSL -o /dev/null -w '  final=%{url_effective}  redirects=%{num_redirects}\n' http://localhost:9092/whoami
 	@echo "REDIRECT  9093 -> "
-	@curl -sSL --resolve app.demo.local:9090:127.0.0.1 -o /dev/null -w '  final=%{url_effective}  redirects=%{num_redirects}\n' http://localhost:9093/whoami
+	@curl -sSL --resolve app.demo.test:9090:127.0.0.1 -o /dev/null -w '  final=%{url_effective}  redirects=%{num_redirects}\n' http://localhost:9093/whoami
 
 # D-14 + RESEARCH Pitfall 3: test, then reload, then verify. Never
 # `docker compose restart proxy` — that contradicts D-14 and throws away the

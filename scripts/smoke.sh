@@ -126,9 +126,9 @@ section_proxy() {
 		'curl -fsS http://localhost:9092/whoami | grep -q "^OLD server-old$"'
 
 	# HTTP-01 via the REAL hostname (D-01/D-02): the client container resolves
-	# app.demo.local through Docker DNS straight to the proxy container.
-	assert "HTTP-01 client -> app.demo.local:9092/whoami == 'OLD server-old'" \
-		'docker compose exec -T client curl -fsS http://app.demo.local:9092/whoami | grep -q "^OLD server-old$"'
+	# app.demo.test through Docker DNS straight to the proxy container.
+	assert "HTTP-01 client -> app.demo.test:9092/whoami == 'OLD server-old'" \
+		'docker compose exec -T client curl -fsS http://app.demo.test:9092/whoami | grep -q "^OLD server-old$"'
 
 	# HTTP-02, read as URL invariance (NOT source-IP invariance — on macOS
 	# Docker Desktop every host-originated request arrives SNAT'd, see Pitfall 6).
@@ -152,8 +152,8 @@ section_proxy() {
 
 	# HTTP-02 corroborating evidence: the log records the name the client asked
 	# for, held constant across the flip. This — not $remote_addr — is the proof.
-	assert "HTTP-02 evidence: proxy log records app.demo.local:9092" \
-		'docker compose exec -T client curl -fsS http://app.demo.local:9092/whoami >/dev/null && docker compose logs proxy | grep -q "app.demo.local:9092"'
+	assert "HTTP-02 evidence: proxy log records app.demo.test:9092" \
+		'docker compose exec -T client curl -fsS http://app.demo.test:9092/whoami >/dev/null && docker compose logs proxy | grep -q "app.demo.test:9092"'
 
 	# T-01-10: loopback-bound only, and no port 22 anywhere in this phase (D-15).
 	#
@@ -191,7 +191,7 @@ section_redirect() {
 	# T-01-13: the Location target is a LITERAL address in the config, so no
 	# request-supplied value can steer where the client is sent.
 	assert "T-01-13 Location target is literal, not \$host-derived" \
-		'grep "return 301" proxy/nginx.conf | grep -q "app.demo.local:9090.request_uri"'
+		'grep "return 301" proxy/nginx.conf | grep -q "app.demo.test:9090.request_uri"'
 
 	# T-01-15: loopback-bound, matching 9090/9091/9092. See the T-01-10 note in
 	# section_proxy for why this uses `port` rather than a `ps` grep.
@@ -208,18 +208,18 @@ section_redirect() {
 	_proxied_before=$(curl -sSL -o /dev/null -w '%{url_effective}' http://localhost:9092/whoami)
 
 	# --resolve on the 9093 follows: the redirect target is a literal
-	# app.demo.local:9090, and this suite must pass on a machine that has not
+	# app.demo.test:9090, and this suite must pass on a machine that has not
 	# yet done the one-time /etc/hosts step (D-03). --resolve supplies the name
 	# for a single invocation and touches no host state (ENV-03). Without it
 	# the hop dies at DNS and the assertion would prove nothing about nginx.
 	assert "HTTP-04 redirect side: 9093 ends on a DIFFERENT URL" \
-		'test "$(curl -sSL --resolve app.demo.local:9090:127.0.0.1 -o /dev/null -w "%{url_effective}" http://localhost:9093/whoami)" != "http://localhost:9093/whoami"'
+		'test "$(curl -sSL --resolve app.demo.test:9090:127.0.0.1 -o /dev/null -w "%{url_effective}" http://localhost:9093/whoami)" != "http://localhost:9093/whoami"'
 	assert "HTTP-04 proxy side: 9092 ends on the IDENTICAL URL requested" \
 		'test "$(curl -sSL -o /dev/null -w "%{url_effective}" http://localhost:9092/whoami)" = "http://localhost:9092/whoami"'
 	assert "HTTP-04 the redirect actually LANDS on OLD (target is reachable)" \
-		'curl -fsSL --resolve app.demo.local:9090:127.0.0.1 http://localhost:9093/whoami | grep -q "^OLD server-old$"'
+		'curl -fsSL --resolve app.demo.test:9090:127.0.0.1 http://localhost:9093/whoami | grep -q "^OLD server-old$"'
 	assert "HTTP-04 9093 performs exactly 1 redirect" \
-		'test "$(curl -sSL --resolve app.demo.local:9090:127.0.0.1 -o /dev/null -w "%{num_redirects}" http://localhost:9093/whoami)" = "1"'
+		'test "$(curl -sSL --resolve app.demo.test:9090:127.0.0.1 -o /dev/null -w "%{num_redirects}" http://localhost:9093/whoami)" = "1"'
 	assert "HTTP-04 9092 performs 0 redirects" \
 		'test "$(curl -sSL -o /dev/null -w "%{num_redirects}" http://localhost:9092/whoami)" = "0"'
 
