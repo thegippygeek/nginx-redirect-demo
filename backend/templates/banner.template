@@ -1,0 +1,18 @@
+# backend/templates/banner.template
+# Rendered by /entrypoint.sh via the SAME explicit envsubst allowlist that
+# renders default.conf.template and index.html.template. One variable feeds all
+# three identity surfaces (D-16), so they cannot drift.
+#
+# UNLIKE the other two templates, this one has no comment syntax of its own —
+# sshd sends /etc/ssh/banner to the client verbatim. So the entrypoint strips
+# these leading `#` lines as it renders. They document the file; they are never
+# part of the banner.
+#
+# ONE line, two fields, single space, single newline — deliberately
+# BYTE-IDENTICAL to this backend's HTTP /whoami body. That is what lets a single
+# anchored grep (^OLD server-old$) prove the identity over BOTH protocols, and
+# lets the presenter say the two protocols return the same sentence.
+#
+# Nothing else belongs below this line. The banner lands on stderr in every
+# scripted invocation; a multi-line ASCII box would read as noise in verify.sh.
+${BACKEND_ID} ${BACKEND_HOSTNAME}
