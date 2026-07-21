@@ -449,11 +449,24 @@ This is the answer to "what gets sacrificed if the table grows": **older post-fl
 sacrificed, and pre-flip history is preserved, for 60 seconds.** The boundary is more valuable than
 row 5.
 
-**Fresh-take case — fewer than 4 pre-flip rows exist.** After an evidence reset a presenter may issue
-only two requests before flipping, so indices 4–7 cannot be filled. **The pin is a ceiling, not a
-fixed position: the boundary sits at `min(3, pre_flip_row_count)`.** With 2 pre-flip rows it sits at
-index 2, with 0 it sits at index 0 (immediately under the header). It migrates *down* toward index 3
-as post-flip requests arrive, and pins there once it reaches it.
+**Fresh-take case — few rows exist yet.** After an evidence reset a presenter may issue only two
+requests before flipping, so indices 4–7 cannot be filled and there is nothing above the boundary at
+the moment of the flip.
+
+**The pin is a ceiling, not a fixed position: the boundary sits at `min(3, post_flip_row_count)`.**
+
+The index *is* the count of rows above the boundary, and rows above the boundary are by definition
+post-flip. So at the instant of the flip there are zero post-flip rows and the boundary sits at index
+0 — immediately under the header, with whatever pre-flip rows exist beneath it. Each post-flip request
+inserts a row above it, moving it down: 0 → 1 → 2 → 3, where it pins for the remainder of the 60 s.
+
+> **Corrected 2026-07-21.** This rule previously read `min(3, pre_flip_row_count)`, which was wrong in
+> two ways: `pre_flip_row_count` is fixed at flip time, so the boundary could never "migrate" as the
+> same paragraph required; and it is geometrically impossible — an index of 2 asserts two rows above
+> the boundary, but with no post-flip traffic yet there are none to place there. The plan-checker
+> accepted the contradictory text; the planner caught it. `post_flip_row_count` is the only reading
+> consistent with both the migration behaviour and the layout. The status service computes this
+> server-side and the page consumes it verbatim.
 
 **Never render blank filler rows.** The table shrinks to its real content — 3 rows and a boundary is
 3 rows and a boundary, not 3 rows plus 4 empty ones. Empty rows on a projector read as "the page is
@@ -752,8 +765,9 @@ Mechanical checks the implementation must pass. These are the concrete form of t
 11. **Root-scale test.** Resize the window to 1280px wide and read
     `getComputedStyle(document.documentElement).fontSize`. It must be `10.666...px`, not `16px`.
     A flat `16px` means the `calc()` was dropped as invalid and the rem scale is dead.
-12. **Fresh-take boundary test.** Evidence reset, issue 2 requests, flip. The boundary renders at row
-    index 2 with no blank filler rows beneath it, and migrates to index 3 as post-flip rows arrive.
+12. **Fresh-take boundary test.** Evidence reset, issue 2 requests, flip. At the moment of the flip
+    the boundary renders at row index 0 with the 2 pre-flip rows beneath it and no blank filler rows.
+    Each subsequent request moves it down one — index 1, 2, then 3 — where it pins.
 13. **Partial-failure test.** Make `active-backend.conf` unreadable while the access log stays
     healthy. The page goes **fully** UNAVAILABLE — it does not render a live traffic reading beside a
     blank config.
