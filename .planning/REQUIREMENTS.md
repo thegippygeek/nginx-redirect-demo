@@ -26,8 +26,8 @@ Requirements for initial release. Each maps to roadmap phases.
 
 - [x] **HTTP-01**: Client can reach the active backend by connecting to nginx on port 9092 over plain HTTP
 - [x] **HTTP-02**: nginx forwards port 9092 traffic transparently — the client's address and port never change
-- [ ] **HTTP-03**: A separate nginx port demonstrates the 301/302 redirect approach, returning a `Location` header that sends the client to the backend directly
-- [ ] **HTTP-04**: Presenter can show, side by side, that the proxied request keeps the original URL while the redirected request changes it
+- [x] **HTTP-03**: A separate nginx port demonstrates the 301/302 redirect approach, returning a `Location` header that sends the client to the backend directly
+- [x] **HTTP-04**: Presenter can show, side by side, that the proxied request keeps the original URL while the redirected request changes it
 
 ### SSH Routing
 
@@ -109,8 +109,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | BACK-05 | Phase 3 | Pending |
 | HTTP-01 | Phase 1 | Complete |
 | HTTP-02 | Phase 1 | Complete |
-| HTTP-03 | Phase 1 | Pending |
-| HTTP-04 | Phase 1 | Pending |
+| HTTP-03 | Phase 1 | Complete |
+| HTTP-04 | Phase 1 | Complete |
 | SSH-01 | Phase 3 | Pending |
 | SSH-02 | Phase 3 | Pending |
 | SSH-03 | Phase 3 | Pending |
