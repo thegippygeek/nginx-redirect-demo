@@ -1,7 +1,7 @@
 #!/bin/sh
 # scripts/smoke.sh — demo rig smoke tests.
 #
-# Usage: sh scripts/smoke.sh [backends|proxy|redirect|cutover|all]
+# Usage: sh scripts/smoke.sh [backends|proxy|redirect|cutover|ssh|all]
 #   no argument == all
 #
 # POSIX sh only. Deliberately NOT `set -e`: every assertion runs so the
@@ -977,20 +977,226 @@ section_cutover() {
 	finish_flip_state
 }
 
+# BACK-04 / BACK-05: SSH into a named backend, and the backend saying who it is
+# the instant the connection opens.
+#
+# This section is NON-DESTRUCTIVE — it neither rewrites the selector nor stops a
+# container — so unlike guard_check() and section_cutover() it installs no trap.
+section_ssh() {
+	echo "--- ssh ---"
+
+	# The shared SSH option set every assertion in this phase uses.
+	#
+	# EXPORTED, and that is not stylistic: assert runs its condition through a
+	# fresh `sh -c`, which inherits exported VARIABLES but not shell functions.
+	# A helper function would be invisible inside an assertion; this is not.
+	#
+	#   BatchMode=yes    kills every interactive prompt. Without it a missing key
+	#                    falls back to a password prompt and blocks forever.
+	#   ConnectTimeout=5 bounds the TCP connect ONLY — not auth, not the banner.
+	#
+	# The two host-key options are DEMO-ONLY and they are here for one specific
+	# reason: Phase 4 deliberately stages a host-key mismatch between the two
+	# backends. Without them every routing assertion in this suite would start
+	# failing for the wrong reason the moment KEY-02 lands — a host-key error
+	# reported as a routing error. Relaxing host-key checking is never the
+	# default anywhere else in this repo: the client's own ssh config sets no
+	# such option, because that default behaviour is Phase 4's raw material.
+	#
+	# Two things are deliberately ABSENT, and each absence is load-bearing:
+	#
+	#   - Any quiet or log-level-lowering option. Research measured each of them
+	#     suppressing the banner ENTIRELY, turning the captured output into the
+	#     empty string. That is how BACK-04 gets broken by a future maintainer
+	#     "cleaning up noisy output"; the guards at the foot of this section
+	#     exist to catch exactly that.
+	#   - Any forced-pty option. The banner needs no pty, and a forced pty with
+	#     no stdin was measured hanging indefinitely.
+	export SSH_OPTS="-o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+
+	# The `client` service has no healthcheck, deliberately — D-02 makes it a
+	# command source, not a service — so `docker compose up -d --wait` returns
+	# before its entrypoint has finished writing the key. Nothing in the running
+	# rig is affected, because sshd re-reads AuthorizedKeysFile on every
+	# authentication attempt, but a probe fired immediately after a bring-up can
+	# lose the race. Poll rather than assume.
+	_i=0
+	while [ "$_i" -lt 10 ]; do
+		docker compose exec -T server-old test -f /keys/authorized_keys >/dev/null 2>&1 && break
+		_i=$((_i + 1))
+		sleep 1
+	done
+
+	# ---- the capture idiom used by every ssh assertion below ----
+	#
+	# Assign the invocation into a variable with command substitution, folding
+	# stderr into stdout, and read the exit status on the VERY NEXT line. The
+	# invocation is NEVER placed on the left of a pipe: a pipeline reports the
+	# LAST command's status, and research measured `ssh ... | head` returning 0
+	# while the output read `Host key verification failed.` Grepping the captured
+	# VARIABLE afterwards is fine — the prohibition is on piping the invocation.
+	#
+	# 2>&1 is mandatory: the banner arrives on stderr, the remote command's
+	# result on stdout, and both are needed.
+	#
+	# `timeout 10` wraps every invocation and is also mandatory. ConnectTimeout
+	# does not cover the post-connect banner exchange or auth, so a proxy that
+	# accepts the TCP connection while the upstream never replies would hang on
+	# sshd's 120s login grace period. timeout in this image returns 143 on
+	# SIGTERM, not 124 — test that the status is non-zero, never for a code.
+
+	# ---- BACK-05: non-interactive key auth into both backends, directly ----
+	#
+	# No -i flag and no password: the key comes from the client's own ssh config.
+	# A pass here is also the confirmation of research assumption A2 — the client
+	# writes the key only AFTER both backends are already running, and no HUP is
+	# ever issued anywhere, so key auth can only succeed if sshd re-reads
+	# AuthorizedKeysFile per authentication attempt.
+	assert "BACK-05 client -> server-old: key auth, non-interactive, no -i flag" \
+		'out=$(docker compose exec -T client timeout 10 ssh $SSH_OPTS demo@server-old hostname 2>&1)
+		 rc=$?
+		 test "$rc" -eq 0 && printf "%s\n" "$out" | grep -qx "server-old"'
+	assert "BACK-05 client -> server-new: key auth, non-interactive, no -i flag" \
+		'out=$(docker compose exec -T client timeout 10 ssh $SSH_OPTS demo@server-new hostname 2>&1)
+		 rc=$?
+		 test "$rc" -eq 0 && printf "%s\n" "$out" | grep -qx "server-new"'
+
+	# ---- BACK-05: the EFFECTIVE sshd config, not what the file claims ----
+	#
+	# This is `sshd -T` and NOT a grep of sshd_config, and the distinction is the
+	# whole point. Alpine's stock config carries an ACTIVE AuthorizedKeysFile
+	# directive well BELOW its drop-in Include line, and sshd uses the FIRST
+	# value it obtains for a keyword — so an appended override is accepted in
+	# silence and never takes effect, producing a generic permission-denied that
+	# reads like a key problem. `sshd -T` reports the effective value and is the
+	# only check that catches it.
+	assert "BACK-05 effective config: server-old authorizedkeysfile is the shared volume" \
+		'docker compose exec -T server-old sshd -T | grep -qix "authorizedkeysfile /keys/authorized_keys"'
+	assert "BACK-05 effective config: server-new authorizedkeysfile is the shared volume" \
+		'docker compose exec -T server-new sshd -T | grep -qix "authorizedkeysfile /keys/authorized_keys"'
+	assert "BACK-04 effective config: server-old banner path took effect" \
+		'docker compose exec -T server-old sshd -T | grep -qix "banner /etc/ssh/banner"'
+	assert "BACK-04 effective config: server-new banner path took effect" \
+		'docker compose exec -T server-new sshd -T | grep -qix "banner /etc/ssh/banner"'
+
+	# D-41: `demo:demo` survives as the DOCUMENTED fallback so a presenter can
+	# demo from their own terminal. Nothing in this phase may disable it.
+	assert "D-41 fallback intact: server-old still accepts password authentication" \
+		'docker compose exec -T server-old sshd -T | grep -qix "passwordauthentication yes"'
+	assert "D-41 fallback intact: server-new still accepts password authentication" \
+		'docker compose exec -T server-new sshd -T | grep -qix "passwordauthentication yes"'
+
+	# ---- BACK-04 / D-43: the identity, from a remote command with NO stdout ----
+	#
+	# `true` produces nothing, so the captured line can ONLY have come from the
+	# pre-auth banner. And this is `ssh host <command>`, which never runs a login
+	# shell — so a pass here IS the proof that the mechanism is sshd's Banner and
+	# not /etc/motd. Research measured motd as ABSENT for this invocation shape
+	# even with a forced pty; motd is not an alternative here, it is a wrong
+	# answer.
+	assert "BACK-04 server-old names itself pre-auth (remote command emits no stdout)" \
+		'out=$(docker compose exec -T client timeout 10 ssh $SSH_OPTS demo@server-old true 2>&1)
+		 rc=$?
+		 test "$rc" -eq 0 && printf "%s\n" "$out" | grep -qx "OLD server-old"'
+	assert "BACK-04 server-new names itself pre-auth (remote command emits no stdout)" \
+		'out=$(docker compose exec -T client timeout 10 ssh $SSH_OPTS demo@server-new true 2>&1)
+		 rc=$?
+		 test "$rc" -eq 0 && printf "%s\n" "$out" | grep -qx "NEW server-new"'
+
+	# ---- BACK-04 empty edge ----
+	#
+	# A backend with no identity must never render a banner at all. The
+	# complementary half — a backend with an empty BACKEND_ID refusing to start
+	# in the first place — is already asserted in section_backends.
+	assert "BACK-04 empty edge: server-old /etc/ssh/banner is non-empty and names an identity" \
+		'docker compose exec -T server-old test -s /etc/ssh/banner &&
+		 docker compose exec -T server-old cat /etc/ssh/banner | grep -qxE "(OLD|NEW) [a-z0-9.-]+"'
+	assert "BACK-04 empty edge: server-new /etc/ssh/banner is non-empty and names an identity" \
+		'docker compose exec -T server-new test -s /etc/ssh/banner &&
+		 docker compose exec -T server-new cat /etc/ssh/banner | grep -qxE "(OLD|NEW) [a-z0-9.-]+"'
+
+	# ---- BACK-04 ordering edge ----
+	#
+	# Exactly two fields in fixed order — identity, single space, hostname — on a
+	# single line, anchored the same way section_backends anchors /whoami.
+	assert "BACK-04 ordering edge: server-old banner is one line of exactly two fields" \
+		'docker compose exec -T server-old cat /etc/ssh/banner | awk "NF!=2{bad=1} END{exit (bad || NR!=1)}"'
+	assert "BACK-04 ordering edge: server-new banner is one line of exactly two fields" \
+		'docker compose exec -T server-new cat /etc/ssh/banner | awk "NF!=2{bad=1} END{exit (bad || NR!=1)}"'
+	assert "BACK-04 ordering edge: server-old banner is exactly OLD server-old" \
+		'docker compose exec -T server-old cat /etc/ssh/banner | grep -qE "^OLD server-old$"'
+	assert "BACK-04 ordering edge: server-new banner is exactly NEW server-new" \
+		'docker compose exec -T server-new cat /etc/ssh/banner | grep -qE "^NEW server-new$"'
+
+	# D-16: the SSH identity and the HTTP identity come from ONE variable, so the
+	# two surfaces cannot drift. Asserted as string equality, not as two greps
+	# that happen to agree.
+	assert "D-16 server-old: the ssh banner and the HTTP /whoami body are the identical string" \
+		'b=$(docker compose exec -T server-old cat /etc/ssh/banner | tr -d "\r"); w=$(curl -fsS http://localhost:9090/whoami); test -n "$b" && test "$b" = "$w"'
+	assert "D-16 server-new: the ssh banner and the HTTP /whoami body are the identical string" \
+		'b=$(docker compose exec -T server-new cat /etc/ssh/banner | tr -d "\r"); w=$(curl -fsS http://localhost:9091/whoami); test -n "$b" && test "$b" = "$w"'
+
+	# ---- BACK-04 adjacency edge ----
+	#
+	# In ONE captured stream the banner's identity line must appear strictly
+	# BEFORE the remote command's own stdout, because Banner is emitted pre-auth.
+	assert "BACK-04 adjacency edge: the banner precedes the remote command's own stdout" \
+		'out=$(docker compose exec -T client timeout 10 ssh $SSH_OPTS demo@server-old hostname 2>&1)
+		 rc=$?
+		 test "$rc" -eq 0 || exit 1
+		 printf "%s\n" "$out" | awk "/^OLD server-old\$/{b=NR} /^server-old\$/{h=NR} END{exit !(b>0 && h>0 && b<h)}"'
+
+	# ---- T-03-01: the keypair exists only inside the named volume ----
+	#
+	# A private key in git reads as a real credential leak to anyone who clones
+	# or scans this repo, however obviously throwaway it is — unlike `demo:demo`,
+	# which is visibly a joke. The keys live in a Docker named volume, never on
+	# the host filesystem, which is also why no .gitignore entry is needed.
+	assert "T-03-01 no key material is tracked by git" \
+		'test -z "$(git ls-files | grep -iE "authorized_keys|ed25519|id_rsa")"'
+
+	# ---- T-03-05: StrictModes for a path outside the user's home ----
+	assert "T-03-05 server-old /keys/authorized_keys is mode 644 owned by root" \
+		'test "$(docker compose exec -T server-old stat -c "%a %U" /keys/authorized_keys | tr -d "\r")" = "644 root"'
+	assert "T-03-05 server-new /keys/authorized_keys is mode 644 owned by root" \
+		'test "$(docker compose exec -T server-new stat -c "%a %U" /keys/authorized_keys | tr -d "\r")" = "644 root"'
+
+	# ---- guards over this section's own text ----
+	#
+	# Every literal below is written with a bracket expression so this audit's
+	# own source lines cannot satisfy the patterns it audits — the same trick
+	# section_cutover uses for the escalation-token check.
+	#
+	# The extraction range is anchored on the function's opening line and a
+	# column-zero closing brace. If it ever failed to bind, every region-scoped
+	# check would pass VACUOUSLY against zero lines, so the range is asserted
+	# non-empty first.
+	assert "BACK-04 guard: the extraction range binds to a non-empty region" \
+		'test "$(awk "/^section_[s]sh\(\) \{/,/^\}/" scripts/smoke.sh | grep -c .)" -gt 20'
+	assert "BACK-04 guard: no quiet, log-level-lowering or forced-pty ssh option in this section" \
+		'test "$(awk "/^section_[s]sh\(\) \{/,/^\}/" scripts/smoke.sh | grep -v "^[[:space:]]*#" | grep -cE "(^|[[:space:]])[-]q([[:space:]]|$)|LogL[e]vel=|[[:space:]][-]tt([[:space:]]|$)")" = "0"'
+	assert "BACK-04 guard: no ssh invocation sits on the left of a pipe in this section" \
+		'test "$(awk "/^section_[s]sh\(\) \{/,/^\}/" scripts/smoke.sh | grep -v "^[[:space:]]*#" | grep -c "s[s]h .*|")" = "0"'
+}
+
 section=${1:-all}
 case "$section" in
 backends) section_backends ;;
 proxy) section_proxy ;;
 redirect) section_redirect ;;
 cutover) section_cutover ;;
+ssh) section_ssh ;;
 all)
 	section_backends
 	section_proxy
 	section_redirect
 	section_cutover
+	# AFTER cutover, deliberately: that section leaves the rig selecting OLD,
+	# which is the state this one expects to find.
+	section_ssh
 	;;
 *)
-	echo "usage: sh scripts/smoke.sh [backends|proxy|redirect|cutover|all]" >&2
+	echo "usage: sh scripts/smoke.sh [backends|proxy|redirect|cutover|ssh|all]" >&2
 	exit 2
 	;;
 esac
