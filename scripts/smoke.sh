@@ -706,6 +706,13 @@ section_cutover() {
 	# Pitfall 7: three healthcheck intervals of pure silence. The proxy's probe
 	# targets :8081, whose `access_log off` suppresses BOTH sinks; the status
 	# service's own liveness probe targets the same listener.
+	#
+	# The settle before the FIRST snapshot is load-bearing. The loop above ends
+	# with a curl whose evidence line may not be visible to the next read yet; if
+	# it lands between the two snapshots, this assertion reports a reading change
+	# during the silent window and blames the healthchecks for traffic it issued
+	# itself. Observed once as an intermittent red on an otherwise green run.
+	sleep 0.5
 	status_get "$_st"
 	_hc1o=$(jnest "$_st" OLD)
 	_hc1n=$(sed -n 's/^    "NEW": \([0-9]*\).*/\1/p' "$_st" | head -1)
