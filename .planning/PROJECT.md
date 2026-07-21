@@ -31,7 +31,7 @@ A live, on-stage flip of the nginx upstream from old to new where the client kee
 
 ### Out of Scope
 
-- Real AWS or Nutanix infrastructure — this is a local simulation; Terraform/EC2 would add cost and setup friction without changing what the demo proves
+- Real infrastructure of any kind (cloud, on-prem, hypervisor, bare metal) — this is a local simulation; provisioning real hosts would add cost and setup friction without changing what the demo proves
 - TLS / HTTPS on port 9092 — plain HTTP keeps the proxy-vs-redirect distinction visible in logs and curl output
 - SSH ProxyJump / bastion patterns — the demo is specifically about nginx as the TCP intermediary
 - Weighted or gradual traffic shifting — the demo is a single decisive cutover, not a phased migration
@@ -40,7 +40,7 @@ A live, on-stage flip of the nginx upstream from old to new where the client kee
 
 ## Context
 
-- Repo is named `aws-nutainx-redirect`, reflecting the real-world scenario that motivated it: proving an AWS → Nutanix migration can cut over without clients noticing. The demo itself uses generic `server-old` / `server-new` naming so it is reusable for any migration.
+- The demo is a generic, environment-agnostic host migration: it proves that a hostname can be cut over from one server to another without clients noticing, independent of where the servers live — cloud-to-cloud, on-prem-to-cloud, a data-centre move, a VM rehost, or one container to another. It uses generic `server-old` / `server-new` naming so it is reusable for any such migration and tied to no vendor or platform.
 - The SSH side is genuinely a TCP stream proxy, not an HTTP redirect — nginx's `stream` module handles this and needs to be present in the nginx image used.
 - The SSH host-key mismatch is the migration surprise most likely to bite in real life, so it is deliberately part of the narrative rather than engineered away.
 - Greenfield: no existing code in this directory.
@@ -56,11 +56,11 @@ A live, on-stage flip of the nginx upstream from old to new where the client kee
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Docker Compose locally instead of AWS/Terraform | Fast, disposable, zero cost; proves the routing mechanics identically | — Pending |
+| Docker Compose locally instead of provisioning real infrastructure | Fast, disposable, zero cost; proves the routing mechanics identically | — Pending |
 | nginx `stream` TCP proxy for SSH (not DNS cutover or ProxyJump) | SSH can't be HTTP-redirected; stream proxy is the mechanism that actually keeps the client pointed at one hostname | — Pending |
 | Show reverse proxy and 301 redirect side by side | The difference between the two is the conceptual crux for the audience | — Pending |
 | Live upstream flip + reload as the cutover mechanism | It's the money shot — visible, decisive, and client-transparent | — Pending |
-| Generic `server-old` / `server-new` naming | Keeps the demo reusable beyond the AWS→Nutanix case | — Pending |
+| Generic `server-old` / `server-new` naming | Keeps the demo reusable for any migration and tied to no vendor or environment | — Pending |
 | Stage the SSH host-key mismatch rather than pre-solve it | It's the #1 real-world migration surprise; showing the failure then the fix is more valuable than a clean run | — Pending |
 | Four independent forms of evidence (banner, logs, status page, verify script) | Migration claims need proof the audience can see from more than one angle | — Pending |
 | Demo hostname is `app.demo.test`, not `app.demo.local` (D-22, Phase 1) | `.local` is RFC 6762-reserved for mDNS; macOS routes it to mDNSResponder, which under Tailscale's DNS takeover is unreachable — every browser/curl lookup stalled 5s despite a correct `/etc/hosts`. `.test` is RFC 6761-reserved, never hits real DNS. Measured 5.03s → 0.05s | ✓ Good |
@@ -84,4 +84,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-07-21 after Phase 3*
+*Last updated: 2026-07-22 — genericised framing (removed vendor-specific AWS/Nutanix references; the demo is environment-agnostic)*

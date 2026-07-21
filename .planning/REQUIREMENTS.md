@@ -70,8 +70,8 @@ Deferred to future release. Tracked but not in current roadmap.
 
 ### Infrastructure
 
-- **INFRA-01**: Terraform deployment of the same topology onto real AWS EC2 instances
-- **INFRA-02**: Nutanix-side target deployment to complete the real migration story
+- **INFRA-01**: Deploy the same topology onto real hosts in any target environment (cloud, on-prem, or hypervisor)
+- **INFRA-02**: Provision the migration target on whatever platform the real cutover is moving to, to complete the end-to-end story
 
 ### Presentation
 
@@ -84,7 +84,7 @@ Explicitly excluded. Documented to prevent scope creep.
 
 | Feature | Reason |
 |---------|--------|
-| Real AWS/Nutanix infrastructure | Local simulation proves the same routing mechanics without cost or setup friction |
+| Real infrastructure of any environment | Local simulation proves the same routing mechanics without cost or setup friction |
 | TLS / HTTPS on port 9092 | Plain HTTP keeps the proxy-vs-redirect distinction visible in curl output and logs |
 | SSH ProxyJump / bastion pattern | The demo is specifically about nginx as the TCP intermediary |
 | Weighted or gradual traffic shifting | The demo is a single decisive cutover, not a phased migration |

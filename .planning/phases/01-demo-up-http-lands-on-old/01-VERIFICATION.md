@@ -126,7 +126,7 @@ No orphaned requirements: all 11 requirements ROADMAP maps to Phase 1 are claime
 | Requirement | Prohibition | Status | Evidence |
 |-------------|-------------|--------|----------|
 | BACK-03 | Must not rely on colour alone | UPHELD | The literal word appears in the `<h1>` banner, the `/whoami` body, and the `X-Backend` header, independent of `BACKEND_COLOR` |
-| BACK-01 | No vendor-specific naming in the artifact | UPHELD | Grep for `aws|nutanix|azure|gcp|vmware|hyper-v|proxmox` across all source returned zero matches (the enclosing directory name is repo metadata, not artifact content) |
+| BACK-01 | No vendor-specific naming in the artifact | UPHELD | Grep for common cloud and hypervisor vendor names across all source returned zero matches (the enclosing directory name is repo metadata, not artifact content) |
 | HTTP-01 | Proxy must not synthesize backend identity | UPHELD | Zero non-comment `add_header` in `proxy/nginx.conf`; the `backend=` log field is `$upstream_http_x_backend`, read from the observed response |
 | ENV-03 | Must not modify host state automatically | UPHELD | The only `/etc/hosts` contact in the repo is a read-only `grep -q` in `make status`; the `sudo` string appears solely as printed remediation text and in README prose. Nothing executes it. Verified independently: `/etc/hosts` was not modified by any command run in this session |
 

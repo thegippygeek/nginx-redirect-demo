@@ -80,7 +80,7 @@ Progress: [██████████] 100%
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
 
-- Init: Docker Compose locally instead of AWS/Terraform — zero cost, disposable, identical routing mechanics
+- Init: Docker Compose locally instead of provisioning real infrastructure — zero cost, disposable, identical routing mechanics
 - Init: nginx `stream` TCP proxy for SSH, not DNS cutover or ProxyJump
 - Init: Show reverse proxy and 301 redirect side by side — the conceptual crux for the audience
 - Init: Stage the SSH host-key mismatch rather than pre-solve it
