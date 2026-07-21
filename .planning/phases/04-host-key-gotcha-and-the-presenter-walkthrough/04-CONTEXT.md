@@ -57,7 +57,7 @@ Requirements: KEY-01, KEY-02, KEY-03, KEY-04, WALK-01, WALK-02, WALK-03.
 
 ### Claude's Discretion
 
-- The exact mechanism for persisting the client's `known_hosts` (named volume, bind mount, or a file inside the client image).
+- ~~The mechanism for persisting the client's `known_hosts`~~ — settled by research: none is needed, and adding one breaks the demo. See D-48.
 - Whether presenter mode is a separate `make` target, an env var, or a documented `ssh` invocation.
 - How host keys are copied in `make fix-hostkeys` (docker cp, exec + tar, or a shared volume).
 - Whether `WALKTHROUGH.md` also gets a printable/condensed cue-card form.
