@@ -4,16 +4,16 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 2
 current_phase_name: The Live HTTP Cutover
-status: executing
-stopped_at: Completed 02-03-PLAN.md
-last_updated: "2026-07-21T09:40:09.594Z"
+status: verifying
+stopped_at: Completed 02-04-PLAN.md — Phase 2 complete, ready for verification
+last_updated: "2026-07-21T10:26:46.818Z"
 last_activity: 2026-07-21
 last_activity_desc: Phase 2 execution started
 progress:
   total_phases: 2
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 7
-  completed_plans: 6
+  completed_plans: 7
 ---
 
 # Project State
@@ -29,10 +29,10 @@ See: .planning/PROJECT.md (updated 2026-07-21)
 
 Phase: 2 (The Live HTTP Cutover) — EXECUTING
 Plan: 4 of 4
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-07-21 — Phase 2 execution started
 
-Progress: [█████████░] 86%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -64,6 +64,7 @@ Progress: [█████████░] 86%
 | Phase 02 P01 | 35 min | 3 tasks | 6 files |
 | Phase 02 P02 | 25 min | 3 tasks | 4 files |
 | Phase 02 P03 | 42 min | 3 tasks | 1 files |
+| Phase 02 P04 | 71 min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -90,6 +91,9 @@ Recent decisions affecting current work:
 - [Phase 02]: boundary.row_index and since_flip_s are computed server-side and consumed verbatim by the page — Client-side re-derivation duplicates the windowing logic, and a client-side clock keeps counting while the service is dead
 - [Phase 02]: Status page table row height ships at 52px, not UI-SPEC's 68px reference — UI-SPEC's own vertical numbers sum to ~1267px against a 1080px frame it also declares must never scroll; the no-scrollbar invariant outranks the derived row-height figure, and row uniformity is preserved exactly
 - [Phase 02]: The recent-requests table edge bar renders white, not accent-on-accent — UI-SPEC specifies both a full-width accent row fill and an accent edge bar, which together make the bar invisible and delete a shape channel that is mandatory because OLD and NEW are isoluminant
+- [Phase 02]: D1 closed by removing flip.sh's confirming request in the reset direction, not by reordering it — Truncate-then-request leaves one evidence line and breaks three CUT-05 assertions; the reset has nothing to seed by definition. Removing the request removes the race window itself — the page cannot see a truncation coming, so no client-side guard could make it deterministic.
+- [Phase 02]: 02-UI-SPEC.md corrected in place: row height 68px to 52px, edge bar accent to #ffffff, long-path example query-string to path-segment — A contract that contradicts the artifact it specifies stops being a contract. Each correction carries its arithmetic or its reason, so a later reader can audit the change rather than trust it.
+- [Phase 02]: The UI token audit lives in section_cutover(), and no mechanical guard is accepted until a deliberate violation has been shown to turn it red — A fifth section could run before status/index.html exists and would pass vacuously. Eight violations across seven classes were introduced, caught and reverted.
 
 ### Pending Todos
 
@@ -108,6 +112,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-07-21T09:39:58.393Z
-Stopped at: Completed 02-03-PLAN.md
+Last session: 2026-07-21T10:26:37.051Z
+Stopped at: Completed 02-04-PLAN.md — Phase 2 complete, ready for verification
 Resume file: None
