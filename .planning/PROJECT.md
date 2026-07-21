@@ -12,21 +12,21 @@ A live, on-stage flip of the nginx upstream from old to new where the client kee
 
 ### Validated
 
-(None yet — ship to validate)
+- ✓ nginx reverse-proxies HTTP on port 9092 to a backend server, transparently (client sees no address change) — Phase 1
+- ✓ nginx also demonstrates the HTTP 301/302 redirect approach side by side, so the difference from proxying is visible — Phase 1
+- ✓ Two backend containers exist: `server-old` and `server-new`, each running HTTP and SSH — Phase 1 (SSH present and reachable in-container; routed in Phase 3)
+- ✓ Each backend self-identifies as OLD or NEW in its HTTP response body — Phase 1 (SSH login banner lands in Phase 3)
+- ✓ Whole demo comes up with one command (`docker compose up`) — Phase 1
 
 ### Active
 
-- [ ] nginx reverse-proxies HTTP on port 9092 to a backend server, transparently (client sees no address change)
-- [ ] nginx also demonstrates the HTTP 301/302 redirect approach side by side, so the difference from proxying is visible
 - [ ] nginx `stream` module proxies raw TCP on port 22 to a backend SSH server
-- [ ] Two backend containers exist: `server-old` and `server-new`, each running HTTP and SSH
-- [ ] Each backend self-identifies as OLD or NEW in its HTTP response body and its SSH login banner
+- [ ] Each backend self-identifies as OLD or NEW in its SSH login banner
 - [ ] Cutover is performed live by editing the nginx upstream and reloading — no client-side change required
 - [ ] nginx access logs are viewable live, showing which upstream served each request
 - [ ] A status page shows current routing state and recent requests
 - [ ] An automated verify script curls HTTP and connects over SSH, asserting which backend answered
 - [ ] The SSH host-key mismatch failure (`REMOTE HOST IDENTIFICATION HAS CHANGED`) is staged deliberately, then fixed by transferring host keys to the new server
-- [ ] Whole demo comes up with one command (`docker compose up`)
 - [ ] A written step-by-step walkthrough script documents the live narrative: show old → flip → show new → SSH gotcha → fix
 
 ### Out of Scope
@@ -63,6 +63,8 @@ A live, on-stage flip of the nginx upstream from old to new where the client kee
 | Generic `server-old` / `server-new` naming | Keeps the demo reusable beyond the AWS→Nutanix case | — Pending |
 | Stage the SSH host-key mismatch rather than pre-solve it | It's the #1 real-world migration surprise; showing the failure then the fix is more valuable than a clean run | — Pending |
 | Four independent forms of evidence (banner, logs, status page, verify script) | Migration claims need proof the audience can see from more than one angle | — Pending |
+| Demo hostname is `app.demo.test`, not `app.demo.local` (D-22, Phase 1) | `.local` is RFC 6762-reserved for mDNS; macOS routes it to mDNSResponder, which under Tailscale's DNS takeover is unreachable — every browser/curl lookup stalled 5s despite a correct `/etc/hosts`. `.test` is RFC 6761-reserved, never hits real DNS. Measured 5.03s → 0.05s | ✓ Good |
+| Tailscale MagicDNS rejected as the demo's name source | Issues machine names not service names (undercuts the "hostname never changed" claim), does not resolve inside the Docker bridge network, and would require unbinding from loopback — exposing the demo and a demo-credentialled sshd to the whole tailnet | ✓ Good |
 
 ## Evolution
 
@@ -82,4 +84,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-07-21 after initialization*
+*Last updated: 2026-07-21 after Phase 1*

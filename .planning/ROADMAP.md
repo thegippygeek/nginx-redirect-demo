@@ -15,7 +15,7 @@ Every phase ends in something demoable in front of an audience.
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Demo Up, HTTP Lands on OLD** - One command brings up nginx + two backends; port 9092 proxies to `server-old` and a second port shows the 301 redirect contrast
+- [x] **Phase 1: Demo Up, HTTP Lands on OLD** - One command brings up nginx + two backends; port 9092 proxies to `server-old` and a second port shows the 301 redirect contrast
 - [ ] **Phase 2: The Live HTTP Cutover** - Edit upstream, reload, and HTTP lands on NEW with logs and a status page as proof
 - [ ] **Phase 3: SSH Through the Stream Proxy** - `ssh` on port 22 lands on the active backend across the same cutover, with a verify script asserting both protocols
 - [ ] **Phase 4: Host-Key Gotcha and the Presenter Walkthrough** - The `REMOTE HOST IDENTIFICATION HAS CHANGED` failure staged, fixed, and documented as a runnable narrative
@@ -105,7 +105,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Demo Up, HTTP Lands on OLD | 3/3 | In Progress|  |
+| 1. Demo Up, HTTP Lands on OLD | 3/3 | Complete | 2026-07-21 |
 | 2. The Live HTTP Cutover | 0/TBD | Not started | - |
 | 3. SSH Through the Stream Proxy | 0/TBD | Not started | - |
 | 4. Host-Key Gotcha and the Presenter Walkthrough | 0/TBD | Not started | - |

@@ -1,7 +1,7 @@
 ---
 phase: 01-demo-up-http-lands-on-old
 verified: 2026-07-21T06:55:00Z
-status: human_needed
+status: verified
 score: 5/5 must-haves verified
 behavior_unverified: 0
 overrides_applied: 0
@@ -12,16 +12,19 @@ re_verification:
   gaps_remaining: []
   regressions: []
 human_verification:
-  - test: "Add the D-03 line for the CURRENT hostname (`echo '127.0.0.1  app.demo.test' | sudo tee -a /etc/hosts`), then open an incognito window and visit `http://app.demo.test:9092/` and `http://app.demo.test:9093/` side by side."
+  - test: "Browser side-by-side at `app.demo.test`: 9092 proxied vs 9093 redirected, plus cross-room legibility of the OLD/NEW banners."
     expected: "9092 shows the amber OLD banner with the URL bar still reading `app.demo.test:9092`; 9093 shows the same OLD banner but the URL bar has visibly changed to `app.demo.test:9090`."
-    why_human: "D-07 makes the browser URL bar the PRIMARY proof for HTTP-04, and a URL bar is not observable from the CLI. This machine's `/etc/hosts` currently contains only the superseded `127.0.0.1  app.demo.local` (line 72) and NO `app.demo.test` entry, so the browser path cannot currently be exercised and the 01-03 SUMMARY's claim that it was confirmed at `app.demo.test` cannot be corroborated. Repo code is correct — `make status` correctly reports `hosts: MISSING` with the exact fix. Recommend also removing the stale `.local` line, which D-22 superseded."
+    why_human: "D-07 makes the browser URL bar the PRIMARY proof for HTTP-04, and a URL bar is not observable from the CLI."
+    resolved: 2026-07-21
+    result: PASS
+    resolution_note: "The stale `127.0.0.1  app.demo.local` line (superseded by D-22) was removed from /etc/hosts and `127.0.0.1  app.demo.test` added. Resolution then measured at 0.03s (down from the 5.03s mDNS stall). Re-confirmed from the CLI at the real hostname: 9092 -> redirects=0, final URL identical to requested; 9093 -> redirects=1, final `http://app.demo.test:9090/whoami`. `make status` reports `hosts: OK`. The human then ran the incognito browser pass covering the URL-bar contrast and the cross-room OLD/NEW legibility check (colour covered, word alone carrying the signal) and reported all steps passing."
 ---
 
 # Phase 1: Demo Up, HTTP Lands on OLD — Verification Report
 
 **Phase Goal:** Presenter runs one command and can immediately show a browser/curl hitting nginx on port 9092, landing on `server-old`, with the URL unchanged — and show the redirect approach alongside it changing the URL
 **Verified:** 2026-07-21T06:55:00Z
-**Status:** human_needed (all five roadmap success criteria mechanically verified; one D-07 browser confirmation outstanding)
+**Status:** verified (all five roadmap success criteria mechanically verified; the outstanding D-07 browser confirmation was resolved on 2026-07-21 — see `human_verification` in the frontmatter)
 **Re-verification:** No — initial verification
 
 All evidence below was produced by running commands against the live stack and against a cold `docker compose down -v` → `up` cycle in this verification session. No SUMMARY.md claim was accepted without independent execution.
