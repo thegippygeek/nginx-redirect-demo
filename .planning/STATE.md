@@ -4,16 +4,16 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 3
 current_phase_name: SSH Through the Stream Proxy
-status: executing
-stopped_at: Completed 03-02-PLAN.md
-last_updated: "2026-07-21T11:52:31.453Z"
+status: verifying
+stopped_at: Completed 03-03-PLAN.md
+last_updated: "2026-07-21T12:08:39.499Z"
 last_activity: 2026-07-21
 last_activity_desc: Phase 3 execution started
 progress:
   total_phases: 3
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 10
-  completed_plans: 9
+  completed_plans: 10
 ---
 
 # Project State
@@ -29,10 +29,10 @@ See: .planning/PROJECT.md (updated 2026-07-21)
 
 Phase: 3 (SSH Through the Stream Proxy) — EXECUTING
 Plan: 3 of 3
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-07-21 — Phase 3 execution started
 
-Progress: [█████████░] 90%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -67,6 +67,7 @@ Progress: [█████████░] 90%
 | Phase 02 P04 | 71 min | 2 tasks | 4 files |
 | Phase 03 P01 | 38 min | 3 tasks | 7 files |
 | Phase 03 P02 | 25 min | 2 tasks | 2 files |
+| Phase 03 P03 | 40 min | 3 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -102,6 +103,9 @@ Recent decisions affecting current work:
 - [Phase 03]: The stream log reuses the HTTP log's backend= field name so make logs-demo colours SSH lines free, with selector= on the same line and a config comment stating the provenance difference (proxy's own selector, not an observed identity)
 - [Phase 03]: worker_shutdown_timeout stays unset (D-40): an in-flight SSH session survives the reload on its original backend, measured live by the smoke suite rather than asserted in prose
 - [Phase 03]: Editing proxy/nginx.conf requires a proxy container recreate — it is a single-file bind mount and an inode-replacing edit leaves the container on stale config while nginx -t still reports success
+- [Phase ?]: verify.sh exit vocabulary 0/1/2/3 — usage never shares a code with mismatch, and the cross-protocol disagreement (D-45) gets its own code so the suite can prove the branch is reachable
+- [Phase ?]: The disagreement check runs first in verify.sh's verdict — both readings are individually valid there, so a mismatch-first order would discard the fact that the flip landed on exactly one protocol
+- [Phase ?]: VERIFY_SSH_HOST is a documented test seam, not a presenter option: pointing SSH at the non-selected backend produces a genuine disagreement rather than a simulated one
 
 ### Pending Todos
 
@@ -120,6 +124,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-07-21T11:52:22.301Z
-Stopped at: Completed 03-02-PLAN.md
+Last session: 2026-07-21T12:08:23.952Z
+Stopped at: Completed 03-03-PLAN.md
 Resume file: None

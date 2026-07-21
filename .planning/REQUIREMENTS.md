@@ -48,8 +48,8 @@ Requirements for initial release. Each maps to roadmap phases.
 - [x] **EVID-01**: Presenter can tail nginx access logs live and see which upstream served each request
 - [x] **EVID-02**: A status page shows which backend is currently active
 - [x] **EVID-03**: The status page shows recent requests and which backend answered them
-- [ ] **EVID-04**: A verify script issues an HTTP request and an SSH connection and reports which backend answered each
-- [ ] **EVID-05**: The verify script exits non-zero if the observed backend does not match the expected one
+- [x] **EVID-04**: A verify script issues an HTTP request and an SSH connection and reports which backend answered each
+- [x] **EVID-05**: The verify script exits non-zero if the observed backend does not match the expected one
 
 ### SSH Host Key Gotcha
 
@@ -122,8 +122,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | EVID-01 | Phase 2 | Complete |
 | EVID-02 | Phase 2 | Complete |
 | EVID-03 | Phase 2 | Complete |
-| EVID-04 | Phase 3 | Pending |
-| EVID-05 | Phase 3 | Pending |
+| EVID-04 | Phase 3 | Complete |
+| EVID-05 | Phase 3 | Complete |
 | KEY-01 | Phase 4 | Pending |
 | KEY-02 | Phase 4 | Pending |
 | KEY-03 | Phase 4 | Pending |

@@ -97,7 +97,7 @@ Plans:
   3. After the upstream flip, a new SSH session lands on `server-new` and its banner says NEW, using the identical `ssh` command as before
   4. A verify script issues an HTTP request and an SSH connection, reports which backend answered each, and exits non-zero when the observed backend does not match the expected one
 
-**Plans**: 2/3 plans executed
+**Plans**: 3/3 plans executed
 
 Plans:
 **Wave 1**
@@ -110,7 +110,7 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 03-03-PLAN.md — `scripts/verify.sh` and `make verify`: both protocols reported on every run, non-zero on mismatch and a distinct exit when the two protocols disagree with each other (EVID-04/05)
+- [x] 03-03-PLAN.md — `scripts/verify.sh` and `make verify`: both protocols reported on every run, non-zero on mismatch and a distinct exit when the two protocols disagree with each other (EVID-04/05)
 
 ### Phase 4: Host-Key Gotcha and the Presenter Walkthrough
 
@@ -137,7 +137,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 |-------|----------------|--------|-----------|
 | 1. Demo Up, HTTP Lands on OLD | 3/3 | Complete | 2026-07-21 |
 | 2. The Live HTTP Cutover | 4/4 | Complete | 2026-07-21 |
-| 3. SSH Through the Stream Proxy | 2/3 | In Progress|  |
+| 3. SSH Through the Stream Proxy | 3/3 | In Progress|  |
 | 4. Host-Key Gotcha and the Presenter Walkthrough | 0/TBD | Not started | - |
 
 ## Requirement Coverage
