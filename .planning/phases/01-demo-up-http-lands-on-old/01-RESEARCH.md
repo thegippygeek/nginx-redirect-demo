@@ -1084,19 +1084,24 @@ Nearly every claim in this document was verified by execution on the target mach
 
 All five are LOW risk and none gates planning. No assumption in this document concerns a security control, a compliance requirement, or a package identity.
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Host port 22 mapping strategy (carried from STATE.md / CONTEXT.md Open Concerns)**
+All three questions were closed at planning time (2026-07-21). Each recommendation was adopted; the adopting plan is cited inline.
+
+1. **RESOLVED — Host port 22 mapping strategy (carried from STATE.md / CONTEXT.md Open Concerns)**
+   - **Resolution:** Recommendation adopted in full. Plan `01-01` Task 3 publishes no mapping for container port 22 and asserts the published-port list contains only 9090/9091; plan `01-02` Task 2 extends that assertion to 9092. Plan `01-03` Task 2 frames the `client` container as the canonical SSH source in `README.md`, so Phase 3 can route `client -> proxy:22 -> backend:22` entirely inside the Docker network with no host port and no client-side flag. Phase 1 takes no position beyond not foreclosing that path.
    - What we know: Port 22 is **free** on this machine [VERIFIED: `nc -z 127.0.0.1 22` → free; macOS Remote Login is off by default]. Phase 1 ships no `stream` block (D-15) and therefore must not bind it. CONTEXT.md correctly notes that D-02's client container sidesteps the problem entirely for SSH, since it connects over the Docker network and never touches a host port.
    - What's unclear: Whether Phase 3 publishes 22 on the host at all. Publishing `22:22` would collide on any machine with Remote Login enabled; publishing `2222:22` weakens the "no client change" claim because the presenter would type `ssh -p 2222`.
    - Recommendation: **Phase 1 takes no position and binds nothing on 22** — which is already what D-15 requires. Phase 1 should, however, make the `client` container the canonical SSH source in its README and Makefile framing, so Phase 3 can route `client → proxy:22 → backend:22` entirely inside the Docker network with **no host port involved and no client-side flag**. That is the only option that keeps CUT-02's "same commands" claim fully honest, and Phase 1's compose layout (network alias on the proxy) already supports it without change. Add a `127.0.0.1:2222:22` publish in Phase 3 only as an optional convenience for a host-side `ssh`, clearly framed as a secondary path.
 
-2. **Whether the `$backend_is_valid` guard (Pitfall 3) is in scope for Phase 1**
+2. **RESOLVED — Whether the `$backend_is_valid` guard (Pitfall 3) is in scope for Phase 1**
+   - **Resolution:** Recommendation adopted. Plan `01-02` Task 1 places the `$backend_is_valid` map and the `return 503` guard in `proxy/nginx.conf`, deliberately NOT in `active-backend.conf`, so the file the audience reads during the Phase 2 flip stays at five lines. Plan `01-02` Task 2 asserts the guard end-to-end by writing an invalid selector, reloading, confirming a 503 with a legible body, then restoring. Threat `T-01-07` is dispositioned on this mitigation.
    - What we know: The 502-on-typo failure mode is real and verified, and it strikes during Phase 2's live flip — the demo's money shot.
    - What's unclear: It costs ~5 lines in `nginx.conf` and slightly increases what the audience sees when the config is shown on screen.
    - Recommendation: **Include it in Phase 1.** It lives in `nginx.conf`, not in `active-backend.conf`, so the file the audience reads during the flip stays three lines. Adding it later means editing the config that Phase 2 has already rehearsed against.
 
-3. **Does the `client` container need `openssh-client` in Phase 1?**
+3. **RESOLVED — Does the `client` container need `openssh-client` in Phase 1?**
+   - **Resolution:** Recommendation adopted. Plan `01-01` Task 3 installs `curl` and `openssh-client` in a single `apk add --no-cache` layer in `client/Dockerfile`, on exactly D-18's reasoning — build once, avoid a mid-project rebuild. Phase 1 does not route or demo SSH.
    - What we know: Phase 1 does not demo SSH (D-15). Phase 3 needs it.
    - What's unclear: Whether adding it now is scope creep or prudence.
    - Recommendation: **Add it now**, on exactly the reasoning D-18 already applies to sshd on the backends — build once, avoid a mid-project rebuild. It costs one word in an `apk add` and nothing in Phase 1's demo surface.
