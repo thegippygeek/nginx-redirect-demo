@@ -99,9 +99,24 @@ weighted large.
   eat the outer edge of a projected frame; anything inside 48px is at risk of being cropped or
   trapezoidally distorted. No text, rule, or fill boundary that carries meaning may sit outside it.
 - **Flip-boundary rule: 8px tall.** Below `md` because it is a rule, not a spacing value.
-- **Table row height: 68px fixed** (not scale-derived). Derived from `32px label type × 1.3 lh + 2 × 16px md`
-  rounded to a multiple of 4. Rows must be uniform height so the boundary rule lands at a
-  predictable pixel position across takes.
+- **Table row height: 52px fixed** (not scale-derived). Rows must be uniform height so the boundary
+  rule lands at a predictable pixel position across takes. **Uniformity is the load-bearing
+  property; the magnitude is not.**
+
+  > **CORRECTION (02-04, from 02-03's deviation 1 — arithmetic).** This document originally specified
+  > 68px, derived from `32px label type × 1.3 lh + 2 × 16px md`. That figure cannot coexist with the
+  > no-scrollbar invariant this same document calls non-negotiable. The honest minimum stack is
+  > 48 (safe) + 152 (config strip) + 64 (gap incl. the 40px sync marker) + 396 (traffic banner)
+  > + 64 (3xl gap) + 8×68 + ~48 (table header) = 592 for the table alone against the 308px the
+  > layout allots it + 48 (footer) + 48 (safe) ≈ **1267px against a 1080px frame**. The shortfall is
+  > ~187px and there is nowhere else to take it from: the 200px Hero and its 2.8× dominance, the
+  > 8-row window, the 48px safe area and the 1176/48/600 evidence columns all carry meaning.
+  > Row height does not. The shipped stack is
+  > `48 / 112 / 16 / 40 / 8 / 296 / 24 / 488 / 48 = exactly 1080px` with a **52px** uniform row, and
+  > every rendered row reports an identical `offsetHeight`. The 68px reference is recorded in a
+  > comment beside the `--row-h` token. The stats rail is inconsistent in the same way — three tiles
+  > of 108+108+92 exactly fill 308px, leaving nothing for the 32px padding the same section
+  > specifies — and is resolved by the same rule.
 
 ---
 
@@ -128,7 +143,7 @@ identical.
 │                       ↕ 64px (3xl)                                     │
 │  ┌───────────────────────────────────────┐ ┌─────────────────────────┐ │ 724
 │  │ RECENT REQUESTS         1176 × 308    │ │ STATS RAIL  600 × 308   │ │
-│  │  8 rows @ 68px, newest first          │ │  OLD  1,204             │ │
+│  │  8 rows @ 52px, newest first          │ │  OLD  1,204             │ │
 │  │  ── FLIP LANDED 14:02:31 ──           │ │  NEW      37            │ │
 │  │                                       │ │  SINCE FLIP    0:07     │ │
 │  └───────────────────────────────────────┘ └─────────────────────────┘ │ 1032
@@ -270,7 +285,7 @@ alone:
 |---------|-----------|
 | **Word** (primary) | The literal string `OLD` or `NEW`, uppercase, weight 700. Continues Phase 1's verified discipline — the word carries the signal, the colour reinforces it |
 | **Position** | Config reading always above, traffic reading always below. The stats rail always lists OLD above NEW. Never reordered, never sorted by value |
-| **Shape** | Table rows carry a 12px solid left edge bar; OLD rows use a **square** cap (`■`-style, sharp corners), NEW rows use a **triangular** cap (`▲`-style, 45° chamfered top). Distinguishable at 10 m in pure monochrome |
+| **Shape** | Table rows carry a 12px solid **white** left edge bar; OLD rows use a **square** cap (`■`-style, sharp corners), NEW rows use a **triangular** cap (`▲`-style, 45° chamfered top). Distinguishable at 10 m in pure monochrome |
 | **Rule** | The flip boundary in the table is an 8px white rule with a text caption — a structural object, not a colour change |
 
 A useful acceptance test for the executor: **screenshot the page, convert to greyscale, and confirm a
@@ -399,17 +414,27 @@ evidence reset (D-36) — in all four cases the value "changed" but no flip occu
 
 D-26 item 2. The audit trail. The boundary must be a **line**, not scattered colour.
 
-**Fixed 8 rows, 68px each, newest first, no scroll, no pagination, no header sort.**
+**Fixed 8 rows, 52px each, newest first, no scroll, no pagination, no header sort.**
+(52px, not the 68px this document originally quoted — see the CORRECTION under Spacing Scale.)
 
 | Column | Width | Font | Content |
 |--------|-------|------|---------|
-| edge bar | 12px | — | Solid accent fill, square cap for OLD / chamfered cap for NEW |
+| edge bar | 12px | — | Solid **`#ffffff`** fill, square cap for OLD / chamfered cap for NEW |
 | time | 200px | mono, Label 32px | `14:02:31` — HH:MM:SS, no date, no milliseconds |
 | path | 620px | mono, Label 32px | `/whoami` — truncated at 28ch with `…`, never wrapped |
 | status | 120px | mono, Label 32px | `200` |
 | backend | 224px | ui, Label 32px, 700 | `OLD` / `NEW`, uppercase, right-aligned |
 
 Row fill is the full-width accent colour at 100% with white text. Row separator: 1px `#2b3542`.
+
+> **CORRECTION (02-04, from 02-03's deviation 2 — the edge bar is white, not accent).** This
+> document originally specified both "row fill is the full-width accent" and "edge bar: solid
+> accent fill". Together those render the bar invisible — accent on accent — which deletes the
+> **Shape** channel entirely. That channel is not decorative here: `#b45309` and `#15803d` are
+> isoluminant, so in greyscale the two fills are the same grey and the cap shape is one of only
+> three surviving signals. The shipped bar is `#ffffff` (19.2:1 against the ground, high contrast
+> against both accents) so the square-versus-chamfered cap resolves in monochrome as this document
+> requires two sections above.
 Header row: `#161d26`, Meta 22px, `#9fb0c0`, labels `TIME · PATH · STATUS · BACKEND`.
 
 ### The boundary treatment
@@ -642,7 +667,7 @@ Four elements plus the dual reading on one projected frame. What breaks first, a
 |----------|-----------|--------------------|
 | Request table grows past 8 rows | Oldest row evicted from the bottom | Old history. The table is a window, not an archive — `make logs` is the archive (D-30) |
 | Boundary would scroll off within 60 s of a flip | Boundary pinned at row index 3 | Post-flip rows 4–7. The boundary outranks them |
-| Path longer than 28 characters | Truncated with `…`, never wrapped | Path detail. A wrapped row breaks the 68px uniform height and shifts the boundary rule's pixel position |
+| Path longer than 28 characters | Truncated with `…`, never wrapped | Path detail. A wrapped row breaks the 52px uniform height and shifts the boundary rule's pixel position |
 | Counter exceeds 6 characters (`999,999`) | Switches to `1.0M` compact notation | Precision. Nobody in the room is reading the 6th digit at 10 m |
 | Two flips inside the 8-row window | Only the **most recent** boundary renders | The older boundary. Two white rules in one table reads as a striped table, not as an event |
 | Viewport narrower than 1280px | Root `font-size` scales; layout proportions hold | Nothing — but this is out of contract; the target is a 1920×1080 projector |
@@ -714,7 +739,7 @@ Applicable state considerations resolved: **12 covered, 2 backstop, 1 unresolved
 | zero-one-many | fewer than 4 pre-flip rows on a fresh take | ✅ covered | Pin is a ceiling: boundary sits at `min(3, post_flip_row_count)` and migrates down to index 3 as post-flip rows arrive. **No blank filler rows** — empty rows read as "still loading" on a projector |
 | empty | EVIDENCE CLEARED confirmation has no layout slot | ✅ covered | Rendered as a `position: fixed` overlay at `bottom: 48px`, z-above the footer, occluding it for 10 s. Declared and intended; nothing reflows because nothing moves |
 | overflow | counter exceeding 6 characters | ✅ covered | Compact notation (`1.0M`) at 7+ chars; tabular numerals prevent width jitter at every poll |
-| long-text | request path longer than 28 characters | 🧪 backstop | Truncate at 28ch with `…`, never wrap — a wrapped row breaks the 68px uniform row height and shifts the boundary rule's pixel position. Needs a visual check with a long real path (e.g. `/whoami?trace=…`) before sign-off |
+| long-text | request path longer than 28 characters | 🧪 backstop | Truncate at 28ch with `…`, never wrap — a wrapped row breaks the 52px uniform row height and shifts the boundary rule's pixel position. Needs a visual check with a long real path (e.g. `/whoami?trace=…`) before sign-off |
 | zero-one-many | two or more flips inside the 8-row window | 🧪 backstop | Only the most recent boundary renders; two white rules would read as a striped table rather than as one event. Needs a visual check across a double-flip rehearsal (D-36 re-run) |
 | overflow | projector overscan cropping the 48px safe area | ⚠ unresolved | Assumption: 48px inset is sufficient for typical keystone/overscan. Cannot be verified without the actual venue projector. Planner treats as an assumption; if the venue crops harder, the safe margin is the single value to raise |
 
