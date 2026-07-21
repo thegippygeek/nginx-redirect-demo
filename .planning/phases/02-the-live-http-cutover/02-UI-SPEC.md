@@ -140,9 +140,21 @@ identical.
 `grid-template-columns: 1176px 48px 600px` (table, gap, rail). Fixed pixels, not fractions — the
 table's column widths must not reflow when a path string grows, or the boundary rule appears to move.
 
-**Root scale hook:** `html { font-size: calc(16px * (100vw / 1920)); }` and every size below
-expressed in `rem`. One line, no media queries, exact proportional fidelity at 1280×720 and at
-3840×2160. The `px` values quoted throughout this document are the 1920-wide reference values.
+**Root scale hook (verbatim — do not rewrite):**
+
+```css
+html { font-size: calc(100vw / 120); }   /* = 16px at 1920px wide */
+```
+
+Every size below is expressed in `rem`. One line, no media queries, exact proportional fidelity at
+1280×720 and at 3840×2160. The `px` values quoted throughout this document are the 1920-wide
+reference values.
+
+**Do not write this as `calc(16px * (100vw / 1920))`.** Dividing by a length is not permitted inside
+`calc()` — the divisor must be a plain number. That form is invalid CSS, the whole declaration is
+dropped, `font-size` silently falls back to the 16px UA default, and the entire rem scale collapses
+to its 1920 reference values regardless of viewport. On a 1920 projector it looks correct, which is
+what makes the bug dangerous. `100vw / 120` divides a length by a number and is valid.
 
 **Vertical budget is fixed and there is no scrollbar anywhere on the page.**
 `html, body { overflow: hidden; height: 100%; }`
@@ -210,6 +222,14 @@ lift gives the panel edges something to sit against.
 | Foreground muted | `#9fb0c0` | **8.65:1** vs ground | Meta text, table header labels, footer |
 | Hairline | `#2b3542` | 1.9:1 vs ground | 2px panel borders, table row separators |
 | Dead / UNAVAILABLE | `#334155` | **10.4:1** vs white text · 1.85:1 vs ground | UNAVAILABLE banner fill only |
+
+**Panel separation is carried by the border, not the fill.** `#161d26` sits at only **1.6:1** against
+`#0b0f14` — adequate on a monitor, but the first thing heavy projector washout destroys. Every panel
+(table container, stats rail, config strip, since-flip tile) therefore carries a **2px `#2b3542`
+border** and that border, not the fill difference, is what defines its edge. The fill is
+reinforcement only. An implementation that omits the borders and relies on `#161d26` alone will look
+correct on the developer's laptop and dissolve into a single flat field on the projector, which is
+the failure mode this note exists to prevent.
 
 `#b45309` and `#15803d` are lifted verbatim from `compose.yaml` (`BACKEND_COLOR` for `server-old` and
 `server-new`) — the same values `backend/templates/index.html.template` paints its full-viewport
@@ -429,6 +449,17 @@ This is the answer to "what gets sacrificed if the table grows": **older post-fl
 sacrificed, and pre-flip history is preserved, for 60 seconds.** The boundary is more valuable than
 row 5.
 
+**Fresh-take case — fewer than 4 pre-flip rows exist.** After an evidence reset a presenter may issue
+only two requests before flipping, so indices 4–7 cannot be filled. **The pin is a ceiling, not a
+fixed position: the boundary sits at `min(3, pre_flip_row_count)`.** With 2 pre-flip rows it sits at
+index 2, with 0 it sits at index 0 (immediately under the header). It migrates *down* toward index 3
+as post-flip requests arrive, and pins there once it reaches it.
+
+**Never render blank filler rows.** The table shrinks to its real content — 3 rows and a boundary is
+3 rows and a boundary, not 3 rows plus 4 empty ones. Empty rows on a projector read as "the page is
+still loading", which undermines the exact evidence the table exists to provide. The table container
+keeps its 308px height with `#161d26` fill; the unused space below the last row is simply panel.
+
 ---
 
 ## The Stats Rail
@@ -500,14 +531,61 @@ is worse than one admitting it cannot tell.
   screen under a desaturation filter is exactly the stale-but-plausible artefact D-28 forbids.
 - Counters read `—`, not their last values.
 
+### 3a. Partial failure — one source readable, the other not
+
+The page has **two** independent inputs: the nginx access log (traffic) and `active-backend.conf`
+(config). Either can fail alone. Both directions collapse to the full UNAVAILABLE state above —
+there is no partial rendering.
+
+| Failure | Rendering |
+|---------|-----------|
+| Log unreadable, config readable | **Full UNAVAILABLE.** A service that cannot read the log has lost its evidence source; a config reading alone is intent with nothing to corroborate it, and D-27 exists precisely because intent is not proof |
+| Config unreadable, log readable | **Full UNAVAILABLE.** Showing `TRAFFIC SHOWS OLD` with config blank invites the room to read the traffic reading as the answer — collapsing D-27's two readings into one, which D-27 explicitly forbids |
+| Both unreadable | Full UNAVAILABLE |
+
+Sync caption in all three cases: `CANNOT DETERMINE`.
+
+Rationale for the deliberately blunt rule: a half-lit page is the most dangerous thing this surface
+can render. It looks operational, so nobody questions it, and whichever half is still live gets read
+as authoritative. **All-or-nothing is the only rendering that cannot be misread**, and D-28's
+standard is "admitting it cannot tell", not "telling as much as it can".
+
+The error detail line names the failing source specifically, so the presenter can diagnose without
+guessing: `/etc/nginx/demo/active-backend.conf — permission denied`.
+
 ### 4. EVIDENCE CLEARED — post-`make flip-old` reset (D-36)
 
-The between-takes state. Structurally identical to NO TRAFFIC YET, plus a 10-second confirmation:
+The between-takes state. Structurally identical to NO TRAFFIC YET, plus a 10-second confirmation.
 
-- A 64px strip below the footer: `EVIDENCE CLEARED · 14:09:02 · READY FOR NEXT TAKE`, Label 32px,
-  white on `#161d26`. Auto-dismisses after 10 s.
+**The confirmation strip is an overlay, not a layout element.** There are zero spare pixels in the
+1080px budget — the footer already occupies 1032→1080 and the page is `overflow: hidden`. The strip
+therefore does not participate in the grid at all:
+
+```css
+.evidence-cleared {
+  position: fixed;
+  left: 48px; right: 48px;          /* 1824px, flush with the safe area */
+  bottom: 48px;                     /* sits ON the footer band */
+  height: 64px;
+  background: #161d26;
+  border: 2px solid #2b3542;
+  z-index: 10;
+  display: grid; place-items: center;
+}
+```
+
+- Copy: `EVIDENCE CLEARED · 14:09:02 · READY FOR NEXT TAKE`, Label 32px, weight 700, white.
+- **The footer is fully occluded for those 10 seconds. This is declared and intended** — the footer
+  carries only the heartbeat and log path, and the presenter is mid-reset and not reading it. After
+  10 s the overlay is removed and the footer reappears unchanged. Nothing reflows, because nothing
+  ever moved.
 - Since-flip clock resets to `—` / `NO FLIP YET`.
 - Both counters return to `0`.
+
+Rejected alternative: reclaiming 64px by compressing the `3xl` gap to `2xl` while the strip is
+present. That reflows the entire evidence row upward for 10 seconds and then back down — the table
+and stats rail visibly jump twice, which is exactly the "looks second-hand" impression D-36 exists to
+prevent. An overlay changes nothing underneath it.
 
 Without this strip a presenter mid-reset cannot tell "the reset worked" from "the page is broken",
 and D-36 exists specifically so the next take does not start looking second-hand.
@@ -598,7 +676,7 @@ failure into a credibility gain: the page is publicly declining to guess. Do not
 
 ## UI Considerations
 
-Applicable state considerations resolved: **9 covered, 2 backstop, 1 unresolved**
+Applicable state considerations resolved: **12 covered, 2 backstop, 1 unresolved**
 
 | Category | Element(s) | Status | Resolution / Reason |
 |----------|------------|--------|---------------------|
@@ -610,6 +688,9 @@ Applicable state considerations resolved: **9 covered, 2 backstop, 1 unresolved*
 | populated | normal operation, both readings agree | ✅ covered | Solid sync rule, `IN SYNC`, no motion anywhere, 8 rows of accent-filled request history |
 | partial | config and traffic disagree (D-27) | ✅ covered | The PENDING state: dashed white pulsing sync rule, `↓ WAITING FOR RELOAD`, 4px white outline on the config chip, both literal words visible simultaneously. Never merged into one reading |
 | overflow | request table beyond 8 rows | ✅ covered | Fixed 8 rows, oldest evicted, no scrollbar. Boundary pinned at row index 3 for 60 s after a flip so the money shot cannot scroll away |
+| partial | one input readable, the other not | ✅ covered | Both directions collapse to full UNAVAILABLE with `CANNOT DETERMINE`; the error detail line names the failing source. No half-lit rendering exists — a partially live page looks operational and gets read as authoritative |
+| zero-one-many | fewer than 4 pre-flip rows on a fresh take | ✅ covered | Pin is a ceiling: boundary sits at `min(3, pre_flip_row_count)` and migrates down to index 3 as post-flip rows arrive. **No blank filler rows** — empty rows read as "still loading" on a projector |
+| empty | EVIDENCE CLEARED confirmation has no layout slot | ✅ covered | Rendered as a `position: fixed` overlay at `bottom: 48px`, z-above the footer, occluding it for 10 s. Declared and intended; nothing reflows because nothing moves |
 | overflow | counter exceeding 6 characters | ✅ covered | Compact notation (`1.0M`) at 7+ chars; tabular numerals prevent width jitter at every poll |
 | long-text | request path longer than 28 characters | 🧪 backstop | Truncate at 28ch with `…`, never wrap — a wrapped row breaks the 68px uniform row height and shifts the boundary rule's pixel position. Needs a visual check with a long real path (e.g. `/whoami?trace=…`) before sign-off |
 | zero-one-many | two or more flips inside the 8-row window | 🧪 backstop | Only the most recent boundary renders; two white rules would read as a striped table rather than as one event. Needs a visual check across a double-flip rehearsal (D-36 re-run) |
@@ -658,7 +739,15 @@ Mechanical checks the implementation must pass. These are the concrete form of t
    2000 ms white ring on the traffic banner.
 10. **Token audit.** Grep the stylesheet: exactly 4 font sizes, exactly 2 font weights, and
     `#b45309`/`#15803d` appearing only as `background`/`background-color` values, never as `color` or
-    `border-color`.
+    `border-color`. Every panel selector carries a `2px solid #2b3542` border.
+11. **Root-scale test.** Resize the window to 1280px wide and read
+    `getComputedStyle(document.documentElement).fontSize`. It must be `10.666...px`, not `16px`.
+    A flat `16px` means the `calc()` was dropped as invalid and the rem scale is dead.
+12. **Fresh-take boundary test.** Evidence reset, issue 2 requests, flip. The boundary renders at row
+    index 2 with no blank filler rows beneath it, and migrates to index 3 as post-flip rows arrive.
+13. **Partial-failure test.** Make `active-backend.conf` unreadable while the access log stays
+    healthy. The page goes **fully** UNAVAILABLE — it does not render a live traffic reading beside a
+    blank config.
 
 ---
 
