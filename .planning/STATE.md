@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 2
 current_phase_name: The Live HTTP Cutover
 status: executing
-stopped_at: Completed 02-01-PLAN.md
-last_updated: "2026-07-21T08:43:06.769Z"
+stopped_at: Completed 02-02-PLAN.md
+last_updated: "2026-07-21T09:10:49.932Z"
 last_activity: 2026-07-21
 last_activity_desc: Phase 2 execution started
 progress:
   total_phases: 2
   completed_phases: 1
   total_plans: 7
-  completed_plans: 4
+  completed_plans: 5
 ---
 
 # Project State
@@ -28,11 +28,11 @@ See: .planning/PROJECT.md (updated 2026-07-21)
 ## Current Position
 
 Phase: 2 (The Live HTTP Cutover) — EXECUTING
-Plan: 2 of 4
+Plan: 3 of 4
 Status: Ready to execute
 Last activity: 2026-07-21 — Phase 2 execution started
 
-Progress: [██████░░░░] 57%
+Progress: [███████░░░] 71%
 
 ## Performance Metrics
 
@@ -62,6 +62,7 @@ Progress: [██████░░░░] 57%
 | Phase 01 P02 | 5 min | 2 tasks | 5 files |
 | Phase 01 P03 | 22 min | 3 tasks | 5 files |
 | Phase 02 P01 | 35 min | 3 tasks | 6 files |
+| Phase 02 P02 | 25 min | 3 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -83,6 +84,9 @@ Recent decisions affecting current work:
 - [Phase 01]: D-22: demo hostname is app.demo.test, not app.demo.local — .local is RFC 6762 mDNS territory and macOS routes it to an mDNSResponder resolver that Tailscale leaves unreachable, stalling getaddrinfo 5s despite a correct /etc/hosts entry. .test is RFC 6761-reserved for exactly this. Phase 2+ must not reintroduce .local; the test suite cannot catch it.
 - [Phase 01]: The 301 Location target is a literal address in proxy/nginx.conf, never $host-derived — readable on a projector and structurally incapable of being an open redirect (T-01-13).
 - [Phase 01]: The redirect target is deliberately static and does not follow $active_backend: after Phase 2's flip, 9092 lands on NEW while 9093 still redirects to 9090/OLD. Intended — the contrast is about the mechanism, not the destination.
+- [Phase 02]: Status container mounts ./proxy as a directory, not active-backend.conf as a single file — D-34 documents live-editing the file in an editor; an inode replacement would freeze a single-file mount on stale content, making a landed cutover read as permanently PENDING
+- [Phase 02]: The evidence service derives everything from three inputs, never two — config unreadable OR log unreadable OR proxy not answering -> full UNAVAILABLE. The active proxy liveness probe is the only input that catches a dead proxy behind a still-readable log (D-28)
+- [Phase 02]: boundary.row_index and since_flip_s are computed server-side and consumed verbatim by the page — Client-side re-derivation duplicates the windowing logic, and a client-side clock keeps counting while the service is dead
 
 ### Pending Todos
 
@@ -100,6 +104,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-07-21T08:43:06.762Z
-Stopped at: Completed 02-01-PLAN.md
+Last session: 2026-07-21T09:10:34.999Z
+Stopped at: Completed 02-02-PLAN.md
 Resume file: None

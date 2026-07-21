@@ -64,7 +64,7 @@ Plans:
   3. A status page shows which backend is currently active and lists recent requests with the backend that answered each
   4. Presenter can flip back to `server-old` and re-run the whole cutover without tearing anything down
 
-**Plans**: 1/4 plans executed
+**Plans**: 2/4 plans executed
 **UI hint**: yes
 
 Plans:
@@ -74,7 +74,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 02-02-PLAN.md — The stateless evidence service: a fourth container deriving config, traffic, counters and boundary from two read-only files plus a live proxy probe, exposed as `/api/status` (EVID-01/02/03, CUT-05)
+- [x] 02-02-PLAN.md — The stateless evidence service: a fourth container deriving config, traffic, counters and boundary from two read-only files plus a live proxy probe, exposed as `/api/status` (EVID-01/02/03, CUT-05)
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
@@ -123,7 +123,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Demo Up, HTTP Lands on OLD | 3/3 | Complete | 2026-07-21 |
-| 2. The Live HTTP Cutover | 1/4 | In Progress|  |
+| 2. The Live HTTP Cutover | 2/4 | In Progress|  |
 | 3. SSH Through the Stream Proxy | 0/TBD | Not started | - |
 | 4. Host-Key Gotcha and the Presenter Walkthrough | 0/TBD | Not started | - |
 

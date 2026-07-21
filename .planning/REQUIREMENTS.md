@@ -46,8 +46,8 @@ Requirements for initial release. Each maps to roadmap phases.
 ### Evidence
 
 - [x] **EVID-01**: Presenter can tail nginx access logs live and see which upstream served each request
-- [ ] **EVID-02**: A status page shows which backend is currently active
-- [ ] **EVID-03**: The status page shows recent requests and which backend answered them
+- [x] **EVID-02**: A status page shows which backend is currently active
+- [x] **EVID-03**: The status page shows recent requests and which backend answered them
 - [ ] **EVID-04**: A verify script issues an HTTP request and an SSH connection and reports which backend answered each
 - [ ] **EVID-05**: The verify script exits non-zero if the observed backend does not match the expected one
 
@@ -120,8 +120,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CUT-04 | Phase 3 | Pending |
 | CUT-05 | Phase 2 | Complete |
 | EVID-01 | Phase 2 | Complete |
-| EVID-02 | Phase 2 | Pending |
-| EVID-03 | Phase 2 | Pending |
+| EVID-02 | Phase 2 | Complete |
+| EVID-03 | Phase 2 | Complete |
 | EVID-04 | Phase 3 | Pending |
 | EVID-05 | Phase 3 | Pending |
 | KEY-01 | Phase 4 | Pending |
