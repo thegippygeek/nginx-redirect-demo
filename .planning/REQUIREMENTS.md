@@ -98,13 +98,54 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| (populated during roadmap creation) | | |
+| ENV-01 | Phase 1 | Pending |
+| ENV-02 | Phase 1 | Pending |
+| ENV-03 | Phase 1 | Pending |
+| ENV-04 | Phase 1 | Pending |
+| BACK-01 | Phase 1 | Pending |
+| BACK-02 | Phase 1 | Pending |
+| BACK-03 | Phase 1 | Pending |
+| BACK-04 | Phase 3 | Pending |
+| BACK-05 | Phase 3 | Pending |
+| HTTP-01 | Phase 1 | Pending |
+| HTTP-02 | Phase 1 | Pending |
+| HTTP-03 | Phase 1 | Pending |
+| HTTP-04 | Phase 1 | Pending |
+| SSH-01 | Phase 3 | Pending |
+| SSH-02 | Phase 3 | Pending |
+| SSH-03 | Phase 3 | Pending |
+| CUT-01 | Phase 2 | Pending |
+| CUT-02 | Phase 2 | Pending |
+| CUT-03 | Phase 2 | Pending |
+| CUT-04 | Phase 3 | Pending |
+| CUT-05 | Phase 2 | Pending |
+| EVID-01 | Phase 2 | Pending |
+| EVID-02 | Phase 2 | Pending |
+| EVID-03 | Phase 2 | Pending |
+| EVID-04 | Phase 3 | Pending |
+| EVID-05 | Phase 3 | Pending |
+| KEY-01 | Phase 4 | Pending |
+| KEY-02 | Phase 4 | Pending |
+| KEY-03 | Phase 4 | Pending |
+| KEY-04 | Phase 4 | Pending |
+| WALK-01 | Phase 4 | Pending |
+| WALK-02 | Phase 4 | Pending |
+| WALK-03 | Phase 4 | Pending |
 
 **Coverage:**
 - v1 requirements: 33 total
-- Mapped to phases: 0
-- Unmapped: 33 ⚠️
+- Mapped to phases: 33 ✓
+- Unmapped: 0
+
+**By phase:**
+
+| Phase | Name | Requirements |
+|-------|------|--------------|
+| 1 | Demo Up, HTTP Lands on OLD | 11 |
+| 2 | The Live HTTP Cutover | 7 |
+| 3 | SSH Through the Stream Proxy | 8 |
+| 4 | Host-Key Gotcha and the Presenter Walkthrough | 7 |
 
 ---
 *Requirements defined: 2026-07-21*
-*Last updated: 2026-07-21 after initial definition*
+*Last updated: 2026-07-21 after roadmap creation*
