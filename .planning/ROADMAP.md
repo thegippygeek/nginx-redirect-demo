@@ -36,7 +36,7 @@ Decimal phases appear between their surrounding integers in numeric order.
   4. Presenter runs one teardown command and can bring the demo back to the identical clean starting state
   5. `nginx -V` inside the proxy container shows the `stream` module is compiled in, so port 22 proxying is possible later
 
-**Plans**: 2/3 plans executed
+**Plans**: 3/3 plans executed
 
 Plans:
 **Wave 1**
@@ -49,7 +49,7 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 01-03-PLAN.md — The 301 redirect contrast on 9093, the presenter README, and the human browser side-by-side verification (HTTP-03/04, ENV-03 inspection)
+- [x] 01-03-PLAN.md — The 301 redirect contrast on 9093, the presenter README, and the human browser side-by-side verification (HTTP-03/04, ENV-03 inspection)
 
 ### Phase 2: The Live HTTP Cutover
 
@@ -105,7 +105,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Demo Up, HTTP Lands on OLD | 2/3 | In Progress|  |
+| 1. Demo Up, HTTP Lands on OLD | 3/3 | In Progress|  |
 | 2. The Live HTTP Cutover | 0/TBD | Not started | - |
 | 3. SSH Through the Stream Proxy | 0/TBD | Not started | - |
 | 4. Host-Key Gotcha and the Presenter Walkthrough | 0/TBD | Not started | - |
