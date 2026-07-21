@@ -156,8 +156,13 @@ section_proxy() {
 		'docker compose exec -T client curl -fsS http://app.demo.local:9092/whoami >/dev/null && docker compose logs proxy | grep -q "app.demo.local:9092"'
 
 	# T-01-10: loopback-bound only, and no port 22 anywhere in this phase (D-15).
+	#
+	# `docker compose port`, not a grep of `ps --format {{.Ports}}`: once 9093
+	# joined the proxy, Compose collapsed the two adjacent publishes into the
+	# range `127.0.0.1:9092-9093->9092-9093/tcp` and the literal grep stopped
+	# matching. `port` resolves one container port at a time and is immune.
 	assert "T-01-10 9092 published on loopback only" \
-		'docker compose ps --format "{{.Ports}}" | grep -q "127.0.0.1:9092->9092"'
+		'docker compose port proxy 9092 | grep -q "^127.0.0.1:9092$"'
 	assert "D-15 no host port 22 binding exists" \
 		'! docker compose ps --format "{{.Ports}}" | grep -q ":22->"'
 
@@ -170,7 +175,69 @@ section_proxy() {
 
 section_redirect() {
 	echo "--- redirect ---"
-	fail "redirect: not implemented yet — plan 01-03"
+
+	# HTTP-03: 9093 answers with a 301 whose Location points at a REAL,
+	# reachable backend address — not back at the proxy.
+	assert "HTTP-03 9093 returns 301" \
+		'curl -sS -o /dev/null -w "%{http_code}" http://localhost:9093/ | grep -q "^301$"'
+	assert "HTTP-03 301 Location targets the backend on 9090" \
+		'curl -sS -o /dev/null -w "%{redirect_url}" http://localhost:9093/ | grep -q "9090"'
+
+	# The requested path survives the hop ($request_uri), so the redirect lands
+	# on the same resource rather than dumping the client on the backend root.
+	assert "HTTP-03 request path survives the redirect (/whoami)" \
+		'curl -sS -i http://localhost:9093/whoami | grep -i "^Location:" | grep -q "/whoami"'
+
+	# T-01-13: the Location target is a LITERAL address in the config, so no
+	# request-supplied value can steer where the client is sent.
+	assert "T-01-13 Location target is literal, not \$host-derived" \
+		'grep "return 301" proxy/nginx.conf | grep -q "app.demo.local:9090.request_uri"'
+
+	# T-01-15: loopback-bound, matching 9090/9091/9092. See the T-01-10 note in
+	# section_proxy for why this uses `port` rather than a `ps` grep.
+	assert "T-01-15 9093 published on loopback only" \
+		'docker compose port proxy 9093 | grep -q "^127.0.0.1:9093$"'
+
+	# ---- HTTP-04: the contrast IS the assertion ----
+	# Both halves live in this one section deliberately. "9093 changes the URL"
+	# and "9092 does not" are only meaningful side by side; asserted apart they
+	# are two unrelated facts and the demo's whole point goes unverified.
+
+	# Measured BEFORE any 9093 traffic — the first half of the order-independence
+	# evidence below.
+	_proxied_before=$(curl -sSL -o /dev/null -w '%{url_effective}' http://localhost:9092/whoami)
+
+	# --resolve on the 9093 follows: the redirect target is a literal
+	# app.demo.local:9090, and this suite must pass on a machine that has not
+	# yet done the one-time /etc/hosts step (D-03). --resolve supplies the name
+	# for a single invocation and touches no host state (ENV-03). Without it
+	# the hop dies at DNS and the assertion would prove nothing about nginx.
+	assert "HTTP-04 redirect side: 9093 ends on a DIFFERENT URL" \
+		'test "$(curl -sSL --resolve app.demo.local:9090:127.0.0.1 -o /dev/null -w "%{url_effective}" http://localhost:9093/whoami)" != "http://localhost:9093/whoami"'
+	assert "HTTP-04 proxy side: 9092 ends on the IDENTICAL URL requested" \
+		'test "$(curl -sSL -o /dev/null -w "%{url_effective}" http://localhost:9092/whoami)" = "http://localhost:9092/whoami"'
+	assert "HTTP-04 the redirect actually LANDS on OLD (target is reachable)" \
+		'curl -fsSL --resolve app.demo.local:9090:127.0.0.1 http://localhost:9093/whoami | grep -q "^OLD server-old$"'
+	assert "HTTP-04 9093 performs exactly 1 redirect" \
+		'test "$(curl -sSL --resolve app.demo.local:9090:127.0.0.1 -o /dev/null -w "%{num_redirects}" http://localhost:9093/whoami)" = "1"'
+	assert "HTTP-04 9092 performs 0 redirects" \
+		'test "$(curl -sSL -o /dev/null -w "%{num_redirects}" http://localhost:9092/whoami)" = "0"'
+
+	# The two listeners share no state. Sandwiching a 9093 request between two
+	# 9092 measurements proves the redirect leaves no residue that changes the
+	# proxied result — the mechanically checkable half of the concurrency
+	# backstop. (The one genuine cross-run interference, a browser caching the
+	# 301, is not CLI-checkable and is mitigated by README's incognito
+	# instruction; curl does not cache and is immune.)
+	_proxied_after=$(curl -sSL -o /dev/null -w '%{url_effective}' http://localhost:9092/whoami)
+	assert "HTTP-04 order-independence: 9092 result identical before and after a 9093 request" \
+		"test '$_proxied_before' = '$_proxied_after'"
+
+	# Pattern 6: nginx answered directly, so there was no upstream and no
+	# backend to name. The dashes are the honest record of that — and a
+	# teaching moment when the presenter tails the log.
+	assert "Pattern 6: the 9093 request logs upstream=- and backend=-" \
+		'curl -sS -o /dev/null http://localhost:9093/whoami && docker compose logs proxy | grep ":9093" | grep -q "upstream=- backend=- "'
 }
 
 section=${1:-all}

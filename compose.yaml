@@ -54,7 +54,9 @@ services:
       # cannot leave the container holding stale content.
       - ./proxy:/etc/nginx/demo:ro
       - ./proxy/nginx.conf:/etc/nginx/nginx.conf:ro
-    ports: ["127.0.0.1:9092:9092"]
+    # 9092 proxies, 9093 redirects. Same explicit loopback binding as the
+    # backends (T-01-15) — the rig is never offered to conference wifi.
+    ports: ["127.0.0.1:9092:9092", "127.0.0.1:9093:9093"]
     networks:
       default:
         # D-01/D-02: the client container resolves the real hostname straight
