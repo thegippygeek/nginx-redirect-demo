@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 1
 current_phase_name: Demo Up, HTTP Lands on OLD
 status: executing
-stopped_at: Phase 1 context gathered
-last_updated: "2026-07-21T05:38:46.380Z"
+stopped_at: Completed 01-01-PLAN.md
+last_updated: "2026-07-21T06:07:06.715Z"
 last_activity: 2026-07-21
 last_activity_desc: Phase 1 execution started
 progress:
   total_phases: 1
   completed_phases: 0
   total_plans: 3
-  completed_plans: 0
+  completed_plans: 1
 ---
 
 # Project State
@@ -28,11 +28,11 @@ See: .planning/PROJECT.md (updated 2026-07-21)
 ## Current Position
 
 Phase: 1 (Demo Up, HTTP Lands on OLD) — EXECUTING
-Plan: 1 of 3
-Status: Executing Phase 1
+Plan: 2 of 3
+Status: Ready to execute
 Last activity: 2026-07-21 — Phase 1 execution started
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [███░░░░░░░] 33%
 
 ## Performance Metrics
 
@@ -54,6 +54,11 @@ Progress: [░░░░░░░░░░] 0%
 - Trend: —
 
 *Updated after each plan completion*
+**Per-Plan Metrics:**
+
+| Plan | Duration | Tasks | Files |
+|------|----------|-------|-------|
+| Phase 01 P01 | 25 min | 3 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -67,6 +72,9 @@ Recent decisions affecting current work:
 - Init: Show reverse proxy and 301 redirect side by side — the conceptual crux for the audience
 - Init: Stage the SSH host-key mismatch rather than pre-solve it
 - Roadmap: Four vertical MVP slices, each demoable on its own; walkthrough folded into the final gotcha phase rather than standing alone
+- [Phase 01]: SSH host keys are generated at container start in entrypoint.sh, never in a Dockerfile RUN layer — A build-time ssh-keygen -A bakes identical host keys into both backends (they share one image per D-16), which would make Phase 4 KEY-01's host-key-mismatch story unstageable without a rebuild.
+- [Phase 01]: The backend image ships its own ENTRYPOINT and puts templates at /templates/, not /etc/nginx/templates/ — The nginx image's /docker-entrypoint.sh guards templating behind [ $1 = nginx ], so under a supervisord CMD it silently no-ops and serves the stock config. The neutral path stops future readers assuming the base mechanism is in play.
+- [Phase 01]: Only server-old carries a build: key; server-new references demo-backend:1 by tag with depends_on — Makes the D-16 one-image invariant structural rather than conventional, and the smoke suite asserts both services resolve to one image ID.
 
 ### Pending Todos
 
@@ -84,6 +92,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-07-21T04:49:30.724Z
-Stopped at: Phase 1 context gathered
-Resume file: .planning/phases/01-demo-up-http-lands-on-old/01-CONTEXT.md
+Last session: 2026-07-21T06:07:06.707Z
+Stopped at: Completed 01-01-PLAN.md
+Resume file: None

@@ -9,16 +9,16 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Environment
 
-- [ ] **ENV-01**: Presenter can bring the entire demo up with a single `docker compose up` command
-- [ ] **ENV-02**: Presenter can tear the demo down and bring it back to a clean starting state with a single command
-- [ ] **ENV-03**: Demo runs entirely locally with no cloud account, credentials, or cost
+- [x] **ENV-01**: Presenter can bring the entire demo up with a single `docker compose up` command
+- [x] **ENV-02**: Presenter can tear the demo down and bring it back to a clean starting state with a single command
+- [x] **ENV-03**: Demo runs entirely locally with no cloud account, credentials, or cost
 - [ ] **ENV-04**: nginx container includes the `stream` module so TCP proxying on port 22 works
 
 ### Backends
 
-- [ ] **BACK-01**: A `server-old` container serves HTTP and accepts SSH connections
-- [ ] **BACK-02**: A `server-new` container serves HTTP and accepts SSH connections
-- [ ] **BACK-03**: Each backend's HTTP response body states its own identity (OLD or NEW) and hostname
+- [x] **BACK-01**: A `server-old` container serves HTTP and accepts SSH connections
+- [x] **BACK-02**: A `server-new` container serves HTTP and accepts SSH connections
+- [x] **BACK-03**: Each backend's HTTP response body states its own identity (OLD or NEW) and hostname
 - [ ] **BACK-04**: Each backend's SSH login banner states its own identity (OLD or NEW) and hostname
 - [ ] **BACK-05**: Presenter can log into either backend over SSH with a known credential or key
 
@@ -98,13 +98,13 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| ENV-01 | Phase 1 | Pending |
-| ENV-02 | Phase 1 | Pending |
-| ENV-03 | Phase 1 | Pending |
+| ENV-01 | Phase 1 | Complete |
+| ENV-02 | Phase 1 | Complete |
+| ENV-03 | Phase 1 | Complete |
 | ENV-04 | Phase 1 | Pending |
-| BACK-01 | Phase 1 | Pending |
-| BACK-02 | Phase 1 | Pending |
-| BACK-03 | Phase 1 | Pending |
+| BACK-01 | Phase 1 | Complete |
+| BACK-02 | Phase 1 | Complete |
+| BACK-03 | Phase 1 | Complete |
 | BACK-04 | Phase 3 | Pending |
 | BACK-05 | Phase 3 | Pending |
 | HTTP-01 | Phase 1 | Pending |
@@ -133,6 +133,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | WALK-03 | Phase 4 | Pending |
 
 **Coverage:**
+
 - v1 requirements: 33 total
 - Mapped to phases: 33 ✓
 - Unmapped: 0

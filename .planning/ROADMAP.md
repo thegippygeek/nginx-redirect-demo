@@ -36,12 +36,12 @@ Decimal phases appear between their surrounding integers in numeric order.
   4. Presenter runs one teardown command and can bring the demo back to the identical clean starting state
   5. `nginx -V` inside the proxy container shows the `stream` module is compiled in, so port 22 proxying is possible later
 
-**Plans**: 3 plans
+**Plans**: 1/3 plans executed
 
 Plans:
 **Wave 1**
 
-- [ ] 01-01-PLAN.md — Walking skeleton foundation: test harness, presenter Makefile, the one-image/two-identities backend, and `docker compose up` bringing both boxes up healthy (ENV-01/02/03, BACK-01/02/03)
+- [x] 01-01-PLAN.md — Walking skeleton foundation: test harness, presenter Makefile, the one-image/two-identities backend, and `docker compose up` bringing both boxes up healthy (ENV-01/02/03, BACK-01/02/03)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -105,7 +105,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Demo Up, HTTP Lands on OLD | 0/3 | Planned | - |
+| 1. Demo Up, HTTP Lands on OLD | 1/3 | In Progress|  |
 | 2. The Live HTTP Cutover | 0/TBD | Not started | - |
 | 3. SSH Through the Stream Proxy | 0/TBD | Not started | - |
 | 4. Host-Key Gotcha and the Presenter Walkthrough | 0/TBD | Not started | - |
