@@ -31,16 +31,16 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### SSH Routing
 
-- [ ] **SSH-01**: Client can `ssh` to the nginx host on port 22 and land on the active backend
-- [ ] **SSH-02**: nginx uses the `stream` module to proxy raw TCP on port 22, not an HTTP redirect
-- [ ] **SSH-03**: The SSH session shows the active backend's identity banner on login
+- [x] **SSH-01**: Client can `ssh` to the nginx host on port 22 and land on the active backend
+- [x] **SSH-02**: nginx uses the `stream` module to proxy raw TCP on port 22, not an HTTP redirect
+- [x] **SSH-03**: The SSH session shows the active backend's identity banner on login
 
 ### Cutover
 
 - [x] **CUT-01**: Presenter can switch the active backend from `server-old` to `server-new` by editing the nginx upstream and reloading
 - [x] **CUT-02**: Cutover requires no change on the client side — same hostname, same ports, same commands
 - [x] **CUT-03**: HTTP requests after the flip land on `server-new`, provable from the response body
-- [ ] **CUT-04**: SSH sessions opened after the flip land on `server-new`, provable from the login banner
+- [x] **CUT-04**: SSH sessions opened after the flip land on `server-new`, provable from the login banner
 - [x] **CUT-05**: Presenter can flip back to `server-old` to re-run the demo without a full teardown
 
 ### Evidence
@@ -111,13 +111,13 @@ Which phases cover which requirements. Updated during roadmap creation.
 | HTTP-02 | Phase 1 | Complete |
 | HTTP-03 | Phase 1 | Complete |
 | HTTP-04 | Phase 1 | Complete |
-| SSH-01 | Phase 3 | Pending |
-| SSH-02 | Phase 3 | Pending |
-| SSH-03 | Phase 3 | Pending |
+| SSH-01 | Phase 3 | Complete |
+| SSH-02 | Phase 3 | Complete |
+| SSH-03 | Phase 3 | Complete |
 | CUT-01 | Phase 2 | Complete |
 | CUT-02 | Phase 2 | Complete |
 | CUT-03 | Phase 2 | Complete |
-| CUT-04 | Phase 3 | Pending |
+| CUT-04 | Phase 3 | Complete |
 | CUT-05 | Phase 2 | Complete |
 | EVID-01 | Phase 2 | Complete |
 | EVID-02 | Phase 2 | Complete |

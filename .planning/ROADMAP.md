@@ -97,7 +97,7 @@ Plans:
   3. After the upstream flip, a new SSH session lands on `server-new` and its banner says NEW, using the identical `ssh` command as before
   4. A verify script issues an HTTP request and an SSH connection, reports which backend answered each, and exits non-zero when the observed backend does not match the expected one
 
-**Plans**: 1/3 plans executed
+**Plans**: 2/3 plans executed
 
 Plans:
 **Wave 1**
@@ -106,7 +106,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 03-02-PLAN.md — The `stream` block: D-39's shared include in a second context, the stream access log to stdout, the flip over SSH, and the Phase 2 deferred question resolved with a measurement (SSH-01/02/03, CUT-04)
+- [x] 03-02-PLAN.md — The `stream` block: D-39's shared include in a second context, the stream access log to stdout, the flip over SSH, and the Phase 2 deferred question resolved with a measurement (SSH-01/02/03, CUT-04)
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
@@ -137,7 +137,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 |-------|----------------|--------|-----------|
 | 1. Demo Up, HTTP Lands on OLD | 3/3 | Complete | 2026-07-21 |
 | 2. The Live HTTP Cutover | 4/4 | Complete | 2026-07-21 |
-| 3. SSH Through the Stream Proxy | 1/3 | In Progress|  |
+| 3. SSH Through the Stream Proxy | 2/3 | In Progress|  |
 | 4. Host-Key Gotcha and the Presenter Walkthrough | 0/TBD | Not started | - |
 
 ## Requirement Coverage
