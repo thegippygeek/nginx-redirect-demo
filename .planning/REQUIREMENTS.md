@@ -12,7 +12,7 @@ Requirements for initial release. Each maps to roadmap phases.
 - [x] **ENV-01**: Presenter can bring the entire demo up with a single `docker compose up` command
 - [x] **ENV-02**: Presenter can tear the demo down and bring it back to a clean starting state with a single command
 - [x] **ENV-03**: Demo runs entirely locally with no cloud account, credentials, or cost
-- [ ] **ENV-04**: nginx container includes the `stream` module so TCP proxying on port 22 works
+- [x] **ENV-04**: nginx container includes the `stream` module so TCP proxying on port 22 works
 
 ### Backends
 
@@ -24,8 +24,8 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### HTTP Routing
 
-- [ ] **HTTP-01**: Client can reach the active backend by connecting to nginx on port 9092 over plain HTTP
-- [ ] **HTTP-02**: nginx forwards port 9092 traffic transparently — the client's address and port never change
+- [x] **HTTP-01**: Client can reach the active backend by connecting to nginx on port 9092 over plain HTTP
+- [x] **HTTP-02**: nginx forwards port 9092 traffic transparently — the client's address and port never change
 - [ ] **HTTP-03**: A separate nginx port demonstrates the 301/302 redirect approach, returning a `Location` header that sends the client to the backend directly
 - [ ] **HTTP-04**: Presenter can show, side by side, that the proxied request keeps the original URL while the redirected request changes it
 
@@ -101,14 +101,14 @@ Which phases cover which requirements. Updated during roadmap creation.
 | ENV-01 | Phase 1 | Complete |
 | ENV-02 | Phase 1 | Complete |
 | ENV-03 | Phase 1 | Complete |
-| ENV-04 | Phase 1 | Pending |
+| ENV-04 | Phase 1 | Complete |
 | BACK-01 | Phase 1 | Complete |
 | BACK-02 | Phase 1 | Complete |
 | BACK-03 | Phase 1 | Complete |
 | BACK-04 | Phase 3 | Pending |
 | BACK-05 | Phase 3 | Pending |
-| HTTP-01 | Phase 1 | Pending |
-| HTTP-02 | Phase 1 | Pending |
+| HTTP-01 | Phase 1 | Complete |
+| HTTP-02 | Phase 1 | Complete |
 | HTTP-03 | Phase 1 | Pending |
 | HTTP-04 | Phase 1 | Pending |
 | SSH-01 | Phase 3 | Pending |

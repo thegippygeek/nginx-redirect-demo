@@ -36,7 +36,7 @@ Decimal phases appear between their surrounding integers in numeric order.
   4. Presenter runs one teardown command and can bring the demo back to the identical clean starting state
   5. `nginx -V` inside the proxy container shows the `stream` module is compiled in, so port 22 proxying is possible later
 
-**Plans**: 1/3 plans executed
+**Plans**: 2/3 plans executed
 
 Plans:
 **Wave 1**
@@ -45,7 +45,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 01-02-PLAN.md — nginx joins the stack: transparent reverse proxy on 9092 landing on `server-old` via `app.demo.local`, plus the flip include, log format, and invalid-selector guard (ENV-04, HTTP-01/02)
+- [x] 01-02-PLAN.md — nginx joins the stack: transparent reverse proxy on 9092 landing on `server-old` via `app.demo.local`, plus the flip include, log format, and invalid-selector guard (ENV-04, HTTP-01/02)
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
@@ -105,7 +105,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Demo Up, HTTP Lands on OLD | 1/3 | In Progress|  |
+| 1. Demo Up, HTTP Lands on OLD | 2/3 | In Progress|  |
 | 2. The Live HTTP Cutover | 0/TBD | Not started | - |
 | 3. SSH Through the Stream Proxy | 0/TBD | Not started | - |
 | 4. Host-Key Gotcha and the Presenter Walkthrough | 0/TBD | Not started | - |
