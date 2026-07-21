@@ -1609,6 +1609,300 @@ section_ssh() {
 		'test "$(grep -v "^[[:space:]]*#" scripts/verify.sh | grep -cE "t[i]meout [0-9]+ s[s]h")" -ge 1'
 }
 
+# ============ the host-key gotcha, end to end (Phase 4, KEY-01..KEY-04) =====
+#
+# The five beats of the demo's central narrative, run FOR REAL against the live
+# rig: prime on OLD, flip, the failure, the fix, the success — plus the re-arm
+# that makes them runnable a second time. Phase 4's claim is that the thing
+# which actually breaks on migration day is reachable on demand and fixable
+# without touching a single client. A document describing that narrative and a
+# test executing it cannot drift silently; a document on its own can, and this
+# suite is the only thing standing between a stale README and a stage failure.
+#
+# THIS IS THE MOST DESTRUCTIVE SECTION IN THE SUITE. It flips the selector, it
+# regenerates server-new's host key material, and it writes the client's trust
+# record. It therefore carries the same trap-based restore discipline
+# guard_check(), restore_flip_state() and restore_ssh_state() carry — installed
+# INLINE here, so the restore and the beats it protects are read together: a
+# trap for INTERRUPTION and a trap for NORMAL EXIT, both of which restore the
+# selector, reload the proxy, re-arm the backend keys and clear the client's
+# trust record. An interrupted run leaves the rig in exactly the state a
+# completed one does. That is not tidiness: the presenter's next command after
+# an interrupted test run is frequently the first command of a live demo.
+#
+# It re-arms with scripts/rearm.sh and NEVER with `make reset` — the suite
+# cannot tear itself down from inside itself, and the in-place path is ~1 s
+# against a measured 16.5 s rebuild.
+#
+# It DRIVES the presenter's real scripts rather than reimplementing their
+# commands. A section that inlined the tar stream and the SIGHUP would stay
+# green while `make fix-hostkeys` was broken — precisely the class of failure
+# this phase exists to rule out.
+#
+# Placed LAST in the `all` chain, after section_ssh, for the same reason
+# section_ssh follows section_cutover: it is the most destructive, and it leaves
+# the rig in the state the next thing expects. Nothing runs after it.
+section_hostkey() {
+	echo "--- hostkey ---"
+
+	# Compose prints its "What's next:" hint block after a failing exec in a
+	# TTY. This section runs a command that is MEANT to fail, and on a projector
+	# that block would be the last thing on screen under the gotcha. Off.
+	export DOCKER_CLI_HINTS=false
+
+	# ---- PRESENTER MODE: the deliberate complement of section_ssh's set ----
+	#
+	# EXPORTED for the same reason SSH_OPTS is: assert runs its condition
+	# through a fresh `sh -c`, which inherits exported VARIABLES but neither
+	# shell functions nor unexported locals.
+	#
+	#   BatchMode=yes                    kills every interactive prompt; without
+	#                                    it a missing key falls back to a
+	#                                    password prompt and blocks forever.
+	#   ConnectTimeout=5                 bounds the TCP connect ONLY — not the
+	#                                    banner exchange and not authentication.
+	#   StrictHostKeyChecking=accept-new records an UNSEEN host silently (no
+	#                                    prompt, no dead air on stage) while
+	#                                    still REFUSING a CHANGED key with the
+	#                                    full 13-line warning. It is NOT the
+	#                                    same thing as switching host-key
+	#                                    checking off.
+	#   UpdateHostKeys=no                load-bearing, not tidiness. Left at its
+	#                                    default the first successful POST-FIX
+	#                                    connection silently appends the RSA and
+	#                                    ECDSA keys to the client's own trust
+	#                                    record — measured 95 -> 837 bytes, one
+	#                                    line becoming three, plus a
+	#                                    known_hosts.old — and KEY-04's
+	#                                    "no client-side edit" claim would
+	#                                    become false while nobody typed a
+	#                                    thing. Pinning it off is what makes the
+	#                                    checksum assertion below meaningful.
+	#
+	# THIS SET AND section_ssh's SSH_OPTS ARE TWO MODES ON PURPOSE (D-52) and
+	# NEITHER MAY BE EDITED WITHOUT READING THE OTHER. Test mode pins
+	# StrictHostKeyChecking=no and UserKnownHostsFile=/dev/null so that Phase
+	# 4's staged mismatch cannot turn 186 routing assertions into host-key
+	# assertions. Presenter mode is the only mode in which the gotcha is
+	# REACHABLE. `make verify` is structurally blind to host keys for exactly
+	# this reason and must never be used to prove the gotcha.
+	#
+	# Two things are deliberately ABSENT, each absence load-bearing: any quiet
+	# or log-level-lowering option (each was measured suppressing the banner
+	# ENTIRELY, turning a capture into the empty string) and any forced pty (the
+	# banner needs none, and a forced pty with no stdin was measured hanging).
+	# The guards at the foot of this section exist to catch their reappearance.
+	export PRESENTER_OPTS="-o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=accept-new -o UpdateHostKeys=no"
+
+	# The negative control's option set — test mode, restated locally rather
+	# than borrowed from section_ssh, because `sh scripts/smoke.sh hostkey` must
+	# run standalone and SSH_OPTS would then be unset.
+	export HK_TESTMODE_OPTS="-o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+
+	# ---- the restore discipline, installed BEFORE anything is mutated ----
+	#
+	# Two traps: one for INTERRUPTION, which exits non-zero, and one for NORMAL
+	# EXIT, which does not. Both put the rig back into the state every section
+	# in this suite is required to leave behind — selector on `old`, backend
+	# keys re-armed, client trust record gone — so an interrupted run cannot
+	# leave the rig fixed, flipped, or holding a stale trust record that would
+	# fire the gotcha BEFORE the flip on the presenter's next take.
+	#
+	# The selector is restored by flipping to `old` with the presenter's own
+	# scripts/flip.sh, NOT by restoring a snapshot taken on entry the way
+	# guard_check() does. The distinction is deliberate and it is a bug this
+	# section hit while being written: guard_check() writes a KNOWN-BAD value
+	# and must put back whatever was there, whereas this section's contract is
+	# to leave the rig on `old` — and restoring an entry snapshot taken while
+	# the rig happened to be on `new` would silently undo that, leaving the
+	# working tree dirty and the next section reading a selector it did not
+	# expect. flip.sh also reloads the proxy, so no separate reload is needed.
+	trap 'sh scripts/flip.sh old >/dev/null 2>&1; sh scripts/rearm.sh >/dev/null 2>&1; docker compose exec -T client sh -c "rm -f /root/.ssh/known_hosts*" >/dev/null 2>&1; exit 1' INT TERM
+	trap 'sh scripts/flip.sh old >/dev/null 2>&1; sh scripts/rearm.sh >/dev/null 2>&1; docker compose exec -T client sh -c "rm -f /root/.ssh/known_hosts*" >/dev/null 2>&1' EXIT
+
+	# ---- the capture idiom, mandatory and non-negotiable ----
+	#
+	# Every invocation below is assigned into a variable with stderr folded in,
+	# and its status is read on the VERY NEXT line. The invocation is NEVER
+	# placed on the left of a pipe: a pipeline reports the LAST command's
+	# status, and research measured `ssh ... | head` returning 0 while its
+	# output read `Host key verification failed.` An assertion written that way
+	# would be a lie of exactly the shape this section exists to prevent.
+	# Grepping the captured VARIABLE afterwards is fine.
+	#
+	# Every invocation is also wrapped in an external `timeout`, because
+	# ConnectTimeout bounds the TCP connect only — a proxy that accepts the
+	# connection while the upstream never answers would otherwise wait out
+	# sshd's 120 s login grace period.
+
+	# ================= beat 1: arm the gotcha and prime the client ==========
+	#
+	# The re-arm gives server-new an identity of its own again and forgets what
+	# the client had learned; the flip puts the rig on OLD so the prime records
+	# OLD's key. Both are the presenter's real scripts.
+	sh scripts/rearm.sh >/dev/null 2>&1
+	sh scripts/flip.sh old >/dev/null 2>&1
+	settle_flip old
+
+	assert "KEY-01 prime: presenter mode connects on OLD and the banner names it" \
+		'out=$(docker compose exec -T client timeout 10 ssh $PRESENTER_OPTS demo@app.demo.test hostname 2>&1)
+		 rc=$?
+		 test "$rc" -eq 0 && printf "%s\n" "$out" | grep -qx "OLD server-old"'
+
+	# The trust record is keyed on THE NAME THE CLIENT TYPED. A prime against a
+	# backend's own service name records a different, useless entry and the
+	# whole section would then pass VACUOUSLY — the flip would produce a clean
+	# first-sight acceptance instead of the gotcha.
+	assert "KEY-01 prime: the trust record is keyed on the PROXIED name, not a backend's" \
+		'docker compose exec -T client grep -qE "^app[.]demo[.]test " /root/.ssh/known_hosts'
+
+	KH_BEFORE=$(docker compose exec -T client md5sum /root/.ssh/known_hosts | cut -d" " -f1)
+	export KH_BEFORE
+	assert "KEY-04 precondition: the trust record's checksum was captured" \
+		'test -n "$KH_BEFORE"'
+
+	# ================= beat 2: the flip ====================================
+	sh scripts/flip.sh new >/dev/null 2>&1
+	settle_flip new
+
+	# ================= beat 3: the failure (KEY-02) ========================
+	#
+	# BOTH halves in ONE assertion. A non-zero status alone could be a network
+	# fault or a stopped container; the warning text alone could arrive through
+	# a pipeline that masked a zero exit.
+	assert "KEY-02 the gotcha: a non-zero exit AND the changed-identification warning" \
+		'out=$(docker compose exec -T client timeout 10 ssh $PRESENTER_OPTS demo@app.demo.test hostname 2>&1)
+		 rc=$?
+		 test "$rc" -ne 0 && printf "%s\n" "$out" | grep -qF "WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED"'
+
+	# The negative control, in the IDENTICAL armed state. Without it a bug that
+	# broke SSH outright would still satisfy the assertion above, and the suite
+	# would be green while the demo was dead.
+	assert "KEY-02 negative control: test mode connects cleanly and reports NEW in the same state" \
+		'out=$(docker compose exec -T client timeout 10 ssh $HK_TESTMODE_OPTS demo@app.demo.test hostname 2>&1)
+		 rc=$?
+		 test "$rc" -eq 0 && printf "%s\n" "$out" | grep -qx "NEW server-new"'
+
+	# ================= beat 4: the fix (KEY-03) ============================
+	#
+	# The precondition first. Asserting that the two fingerprints DIFFER here is
+	# what makes the post-fix equality meaningful rather than a tautology.
+	FP_HK_OLD=$(hostkey_fp server-old)
+	FP_HK_NEW=$(hostkey_fp server-new)
+	export FP_HK_OLD FP_HK_NEW
+	assert "KEY-03 precondition: the two backends present DIFFERENT ed25519 fingerprints" \
+		'test -n "$FP_HK_OLD" && test -n "$FP_HK_NEW" && test "$FP_HK_OLD" != "$FP_HK_NEW"'
+
+	# The concurrency edge, folded into the same fix run. A session opened
+	# BEFORE the fix and still running WHEN it lands must not be dropped: the
+	# daemon RE-EXECS on SIGHUP (PID preserved, supervisord undisturbed) rather
+	# than restarting. Test mode is used for this probe deliberately — the
+	# question is whether the daemon drops an in-flight session, not whether the
+	# client trusts the key.
+	#
+	# The session is timeout-bounded and waited for. A leaked one pins an old
+	# worker generation and makes every later observation nondeterministic
+	# across takes.
+	_hklog=$(mktemp)
+	docker compose exec -T client timeout 25 ssh $HK_TESTMODE_OPTS demo@app.demo.test "sleep 6; hostname" >"$_hklog" 2>&1 &
+	_hkpid=$!
+	sleep 2
+
+	sh scripts/fix-hostkeys.sh >/dev/null 2>&1
+
+	wait "$_hkpid"
+	HK_INFLIGHT_RC=$?
+	HK_INFLIGHT=$(cat "$_hklog")
+	rm -f "$_hklog"
+	export HK_INFLIGHT_RC HK_INFLIGHT
+
+	# Read from the RUNNING rig, never from a file listing: copying the key
+	# files is measured NOT to be the fix, because sshd holds its host keys in
+	# memory from startup. What the daemon PRESENTS is the only honest reading.
+	FP_FIXED_OLD=$(hostkey_fp server-old)
+	FP_FIXED_NEW=$(hostkey_fp server-new)
+	export FP_FIXED_OLD FP_FIXED_NEW
+	assert "KEY-03 the fix: both backends now present the SAME ed25519 fingerprint" \
+		'test -n "$FP_FIXED_OLD" && test "$FP_FIXED_OLD" = "$FP_FIXED_NEW"'
+	assert "KEY-03 the fix landed in the DAEMON: the presented fingerprint actually changed" \
+		'test "$FP_FIXED_NEW" != "$FP_HK_NEW" && test "$FP_FIXED_NEW" = "$FP_HK_OLD"'
+	assert "KEY-03 concurrency edge: a session open across the fix completes and still names its own backend" \
+		'test "$HK_INFLIGHT_RC" -eq 0 && printf "%s\n" "$HK_INFLIGHT" | grep -qx "server-new"'
+
+	# ================= beat 5: the success (KEY-04) ========================
+	assert "KEY-04 the identical presenter command now succeeds and the banner names NEW" \
+		'out=$(docker compose exec -T client timeout 10 ssh $PRESENTER_OPTS demo@app.demo.test hostname 2>&1)
+		 rc=$?
+		 test "$rc" -eq 0 && printf "%s\n" "$out" | grep -qx "NEW server-new"'
+
+	# The mechanical form of KEY-04's "no client-side edit" claim. This is only
+	# satisfiable because presenter mode pins UpdateHostKeys=no above: with the
+	# default the successful connection immediately preceding this line rewrites
+	# the file, 95 -> 837 bytes, and this assertion goes red for a reason that
+	# has nothing to do with the fix. A maintainer removing that pin has broken
+	# the phase's headline claim, not merely this test.
+	assert "KEY-04 the client's trust record is byte-identical across the fix" \
+		'test "$(docker compose exec -T client md5sum /root/.ssh/known_hosts | cut -d" " -f1)" = "$KH_BEFORE"'
+
+	# ================= beat 6: the re-arm, ASSERTED (KEY-01) ===============
+	#
+	# A re-arm that silently did nothing is the failure these two exist to
+	# catch: `ssh-keygen -A` only fills GAPS, so a generate-only re-arm leaves
+	# the rig FIXED while looking armed, and the presenter discovers it live.
+	sh scripts/rearm.sh >/dev/null 2>&1
+	FP_REARM_OLD=$(hostkey_fp server-old)
+	FP_REARM_NEW=$(hostkey_fp server-new)
+	export FP_REARM_OLD FP_REARM_NEW
+	assert "KEY-01 the re-arm restores the DIFFERING fingerprints" \
+		'test -n "$FP_REARM_OLD" && test -n "$FP_REARM_NEW" && test "$FP_REARM_OLD" != "$FP_REARM_NEW"'
+	assert "KEY-01 the re-arm clears the client's trust record" \
+		'! docker compose exec -T client test -e /root/.ssh/known_hosts'
+
+	# ---- leave the rig selecting OLD, and prove it landed ----
+	sh scripts/flip.sh old >/dev/null 2>&1
+	settle_flip old
+	set_active
+	assert "KEY-01 the hostkey section leaves the rig selecting old" \
+		'test "$ACTIVE_SEL" = "old" && test "$(docker compose exec -T proxy curl -sS --max-time 2 http://localhost:8081/active-backend | tr -d "\r\n")" = "old"'
+
+	# The rig is back on `old` under this section's own power and the gotcha is
+	# re-armed, so the traps have nothing left to do. Cleared here rather than
+	# left installed, so a later failure elsewhere in the suite does not pay for
+	# a second re-arm it does not need.
+	trap - EXIT INT TERM
+
+	# ---- guards over this section's own text ----
+	#
+	# Every literal below is written with a bracket expression so this audit's
+	# own source lines cannot satisfy the patterns it audits.
+	#
+	# Each guard strips FULL-LINE COMMENTS FIRST — the prose above names every
+	# hazard it guards against, so an unstripped grep would be invalidated by
+	# the very warning that makes it trustworthy — and the extracted region and
+	# the stripped region are BOTH asserted non-empty before anything negative
+	# is counted, because a check over zero lines passes vacuously.
+	assert "KEY-02 guard: the extraction range binds to a non-empty region" \
+		'test "$(awk "/^section_[h]ostkey\(\) \{/,/^\}/" scripts/smoke.sh | grep -c .)" -gt 40'
+	assert "KEY-02 guard: the comment-stripped region is more than twenty lines" \
+		'test "$(awk "/^section_[h]ostkey\(\) \{/,/^\}/" scripts/smoke.sh | grep -v "^[[:space:]]*#" | grep -c .)" -gt 20'
+	assert "KEY-02 guard: no ssh invocation sits on the left of a pipe in this section" \
+		'test "$(awk "/^section_[h]ostkey\(\) \{/,/^\}/" scripts/smoke.sh | grep -v "^[[:space:]]*#" | grep -c "s[s]h .*|")" = "0"'
+	assert "KEY-02 guard: no quiet, log-level-lowering or forced-pty ssh option in this section" \
+		'test "$(awk "/^section_[h]ostkey\(\) \{/,/^\}/" scripts/smoke.sh | grep -v "^[[:space:]]*#" | grep -cE "(^|[[:space:]])[-]q([[:space:]]|$)|LogL[e]vel=|[[:space:]][-]tt([[:space:]]|$)")" = "0"'
+
+	# ---- guards that Phase 3's TEST-MODE pins are still in place ----
+	#
+	# The two modes stay two modes (D-52). If a future maintainer "unifies"
+	# them, Phase 4's staged mismatch turns 186 routing assertions into host-key
+	# assertions, and `make verify` starts reporting host-key failures as
+	# cutover failures. Asserted from this section because this section is the
+	# one whose existence creates the temptation.
+	assert "KEY-02 guard: section_ssh still pins test mode (Phase 3's 186 assertions depend on it)" \
+		'test "$(awk "/^section_[s]sh\(\) \{/,/^\}/" scripts/smoke.sh | grep -c "UserKnownHostsFile=/dev/null")" -ge 1'
+	assert "KEY-02 guard: scripts/verify.sh still pins test mode and is blind to host keys by design" \
+		'grep -qE "UserKnownHostsFile=/dev/null" scripts/verify.sh && grep -qE "StrictHostKeyChecking=no" scripts/verify.sh'
+}
+
 section=${1:-all}
 case "$section" in
 backends) section_backends ;;
