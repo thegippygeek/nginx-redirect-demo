@@ -1,7 +1,7 @@
 ---
 phase: 2
 slug: the-live-http-cutover
-status: draft
+status: approved
 shadcn_initialized: false
 preset: none
 created: 2026-07-21
@@ -565,7 +565,7 @@ therefore does not participate in the grid at all:
 .evidence-cleared {
   position: fixed;
   left: 48px; right: 48px;          /* 1824px, flush with the safe area */
-  bottom: 48px;                     /* sits ON the footer band */
+  bottom: 48px;                     /* flush with the bottom safe-area edge (y = 968→1032) */
   height: 64px;
   background: #161d26;
   border: 2px solid #2b3542;
@@ -575,10 +575,17 @@ therefore does not participate in the grid at all:
 ```
 
 - Copy: `EVIDENCE CLEARED · 14:09:02 · READY FOR NEXT TAKE`, Label 32px, weight 700, white.
-- **The footer is fully occluded for those 10 seconds. This is declared and intended** — the footer
-  carries only the heartbeat and log path, and the presenter is mid-reset and not reading it. After
-  10 s the overlay is removed and the footer reappears unchanged. Nothing reflows, because nothing
-  ever moved.
+- **Geometry:** the overlay occupies y = 968→1032 — the bottom 64px of the evidence row
+  (724→1032), flush with the bottom edge of the 48px safe area. It does **not** cover the footer
+  band (1032→1080), which remains fully visible throughout.
+- **What it occludes is harmless by construction.** It covers the bottom 64px of the table and stats
+  rail, and State 4 is structurally NO TRAFFIC YET — the table is empty and both counters read `0`,
+  so nothing evidential is hidden. After 10 s the overlay is removed. Nothing reflows, because
+  nothing ever moved.
+- **Declared safe-area exception:** the footer band (1032→1080) sits outside the 48px safe area that
+  is non-negotiable everywhere else in this spec. This is deliberate — the footer carries only the
+  heartbeat and the log path, both presenter-facing diagnostics rather than room-facing evidence. No
+  element carrying meaning for the audience may sit outside the safe area.
 - Since-flip clock resets to `—` / `NO FLIP YET`.
 - Both counters return to `0`.
 
@@ -657,7 +664,9 @@ instrumentation.
 | Empty state heading | `NO TRAFFIC OBSERVED YET` |
 | Empty state body | `Send a request to http://app.demo.test:9092/ and it will appear here.` |
 | Error state heading | `UNAVAILABLE` |
-| Error state body | `Cannot read the proxy access log. Not showing a stale reading.` |
+| Error state body (log unreadable) | `Cannot read the proxy access log. Not showing a stale reading.` |
+| Error state body (config unreadable) | `Cannot read the active-backend config. Not showing a stale reading.` |
+| Error state body (both unreadable) | `Cannot read the proxy access log or the active-backend config. Not showing a stale reading.` |
 | Error state detail | `{log path} — {reason}` (e.g. `/var/log/nginx/access.log — no such file`) |
 | Error state remedy | `Check: docker compose ps proxy` |
 | Evidence-cleared confirmation | `EVIDENCE CLEARED · {HH:MM:SS} · READY FOR NEXT TAKE` |
