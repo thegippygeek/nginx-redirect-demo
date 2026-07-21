@@ -1,0 +1,306 @@
+<!doctype html>
+<!-- status/index.html — the projected cutover surface (D-23, D-24, D-26, D-27, D-28).
+
+     ONE file. Inline style, inline script, zero external references of any kind:
+     no hosted stylesheet, no web font, no remote script, no image. ENV-03
+     requires the whole rig to run with no internet at all, and a demo that shows
+     a broken layout on a conference network has already failed.
+
+     Served as a STATIC file by the status service, deliberately not templated
+     server-side: the 5 s staleness watchdog below is the only mechanism that can
+     notice this page's own server dying, and server-side templating cannot do it.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>cutover status</title>
+<style>
+/* ------------------------------------------------------------ tokens */
+:root{
+  --font-ui: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+
+  --bg:#0b0f14;      /* page ground and every panel interior */
+  --panel:#161d26;   /* secondary fill — reinforcement only, never the edge */
+  --line:#2b3542;    /* 2px panel borders and 1px row separators */
+  --fg:#ffffff;
+  --mut:#9fb0c0;
+  --old:#b45309;     /* lifted verbatim from compose.yaml BACKEND_COLOR */
+  --new:#15803d;     /* ditto — the audience learns this language once */
+  --dead:#334155;    /* the UNAVAILABLE fill. Deliberately a slate, not a hue */
+
+  /* Exactly four sizes. A fifth is a contract failure. */
+  --fs-hero:12.5rem; --fs-display:4.5rem; --fs-label:2rem; --fs-meta:1.375rem;
+
+  --xs:.25rem; --sm:.5rem; --md:1rem; --lg:1.5rem; --xl:2rem; --safe:3rem;
+
+  /* Uniform table row height. UI-SPEC quotes 68px (4.25rem) as its reference
+     value; the shipped value is lowered to fit the 1080 budget without a
+     scrollbar — see the 02-03 summary, deviation 1. Uniformity is what the
+     boundary rule depends on, and uniformity is preserved exactly. */
+  --row-h:3.25rem;
+}
+
+/* The root scale hook. Divides a length by a plain NUMBER, which is the only
+   form valid inside calc(); every size below is expressed in rem from here. */
+html{ font-size: calc(100vw / 120); }
+
+html,body{ height:100%; overflow: hidden; }
+body{
+  margin:0; background:var(--bg); color:var(--fg);
+  font-family:var(--font-ui); font-weight:400;
+  -webkit-font-smoothing:antialiased;
+}
+*{ box-sizing:border-box; }
+
+/* ------------------------------------------------------------ layout
+   1920x1080, fixed. 48px projector safe area on all four sides; the footer
+   band is the one declared exception, carrying presenter-facing diagnostics
+   only. Rows sum to exactly 100vh so no scrollbar can ever exist. */
+.page{
+  height:100vh;
+  padding: var(--safe) var(--safe) 0;
+  display:grid;
+  grid-template-rows:
+    7rem      /* config strip   */
+    1rem      /* gap            */
+    2.5rem    /* sync marker    */
+    .5rem     /* gap            */
+    18.5rem   /* traffic banner */
+    1.5rem    /* gap            */
+    30.5rem   /* evidence row   */
+    3rem;     /* footer band    */
+}
+
+.panel{ background:var(--panel); border:2px solid var(--line); }
+
+/* ------------------------------------------------- 1. the config strip */
+.config{
+  display:flex; align-items:center; justify-content:space-between;
+  padding:0 var(--xl);
+}
+.config .lbl{
+  font-size:var(--fs-label); font-weight:700; letter-spacing:.08em;
+  text-transform:uppercase; color:var(--mut);
+}
+.chip{
+  font-size:var(--fs-display); font-weight:700; line-height:1.05;
+  letter-spacing:-.01em; text-transform:uppercase;
+  padding: var(--xs) var(--lg);
+  background:var(--old); color:var(--fg);
+}
+.chip.b-OLD{ background:var(--old); }
+.chip.b-NEW{ background:var(--new); }
+.chip.b-none{ background:var(--panel); color:var(--mut); }
+.pending .chip{ outline:4px solid #fff; outline-offset:8px; }
+
+/* --------------------------------------------------- 2. the sync marker
+   The 40px strip that carries the whole D-27 story. Three captions. */
+.sync{ display:flex; align-items:center; gap:var(--lg); }
+.sync .rule{ flex:1 1 auto; height:4px; background:var(--line); }
+.sync .cap{
+  font-size:var(--fs-label); font-weight:700; letter-spacing:.08em;
+  text-transform:uppercase; color:var(--mut); white-space:nowrap;
+}
+.pending .sync .cap{ color:var(--fg); }
+.pending .sync .rule{
+  background: repeating-linear-gradient(90deg,#fff 0 24px, transparent 24px 40px);
+}
+.pending .sync{ animation: pulse 1600ms ease-in-out infinite; }
+@keyframes pulse{ 0%,100%{opacity:1} 50%{opacity:.55} }
+
+/* ------------------------------------------------ 3. the traffic banner
+   Hero, 2.8x the config reading. Config is intent; traffic is evidence, and
+   evidence outranks intent — the element that changes during the money shot
+   is the biggest thing on screen. Never side by side with config. */
+.traffic{
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  background:var(--old);
+}
+.traffic.b-OLD{ background:var(--old); }
+.traffic.b-NEW{ background:var(--new); }
+.traffic.b-none{ background:var(--panel); }
+.traffic.b-dead{ background:var(--dead); }
+.traffic .lbl{
+  font-size:var(--fs-label); font-weight:700; letter-spacing:.08em;
+  text-transform:uppercase; color:var(--fg); opacity:.85;
+}
+.hero{
+  font-size:var(--fs-hero); font-weight:700; line-height:1;
+  letter-spacing:-.02em; text-transform:uppercase;
+}
+.hero.small{ font-size:var(--fs-display); line-height:1.05; letter-spacing:-.01em; }
+.hero.muted{ color:var(--mut); }
+.traffic .sub{ font-size:var(--fs-meta); font-weight:400; color:var(--fg); opacity:.9; }
+.traffic.b-none .sub, .traffic.b-none .lbl{ color:var(--mut); opacity:1; }
+
+/* ------------------------------------------------- 4. the evidence row */
+.evidence{ display:grid; grid-template-columns: 73.5rem 3rem 37.5rem; }
+
+/* ------------------------------------------------------- 5. the footer */
+.foot{
+  display:flex; align-items:center; gap:var(--sm);
+  font-size:var(--fs-meta); font-weight:400; color:var(--mut);
+}
+.foot.stale{ color:var(--fg); background:var(--dead); padding:0 var(--md); }
+#beat{ transition:none; }
+</style>
+</head>
+<body>
+<!-- The initial paint ships the NO-TRAFFIC state inline. No spinner and no
+     skeleton: the first poll lands within 1000 ms, which is less time than it
+     takes to recognise a skeleton for what it is. -->
+<div class="page" id="page">
+
+  <section class="config panel" id="config">
+    <span class="lbl">CONFIG SAYS</span>
+    <span class="chip b-none" id="cfgWord">&mdash;</span>
+  </section>
+
+  <div></div>
+
+  <div class="sync" id="sync">
+    <span class="rule"></span>
+    <span class="cap" id="syncCap">AWAITING FIRST REQUEST</span>
+    <span class="rule"></span>
+  </div>
+
+  <div></div>
+
+  <section class="traffic b-none" id="traffic">
+    <span class="lbl">TRAFFIC SHOWS</span>
+    <span class="hero muted" id="heroWord">&mdash;</span>
+    <span class="sub" id="trafficSub">NO TRAFFIC OBSERVED YET</span>
+  </section>
+
+  <div></div>
+
+  <section class="evidence">
+    <div class="panel" id="tableWrap"></div>
+    <div></div>
+    <div class="panel" id="railWrap"></div>
+  </section>
+
+  <footer class="foot" id="foot"><span id="footText">updated &mdash;</span><span id="beat">&#9650;</span></footer>
+
+</div>
+
+<script>
+"use strict";
+/* ---------------------------------------------------------------- render
+   Every value below that originated in the evidence log — the path, the
+   timestamp, the status code, the backend word, the hostname, the error
+   detail — is assigned through textContent. The request path is
+   attacker-influenced and reaches this projector verbatim: a live payload was
+   demonstrated surviving intact through $uri into the JSON, so the escaping
+   burden sits entirely here. textContent also makes the 28-character
+   truncation safe, since cutting a plain string cannot sever an entity. */
+var $ = function(id){ return document.getElementById(id); };
+var txt = function(el, s){ el.textContent = s; };
+
+var EM = "—";
+var POLL_MS = 1000;
+var WATCHDOG_MS = 5000;
+var STALE_MS = 3000;
+
+var lastOkAt = Date.now();
+var beatOn = true;
+
+function backendClass(word){
+  if (word === "OLD") return "b-OLD";
+  if (word === "NEW") return "b-NEW";
+  return "b-none";
+}
+
+/* ------------------------------------------------------- the two readings */
+function renderConfig(data){
+  var chip = $("cfgWord");
+  chip.className = "chip " + backendClass(data.config);
+  txt(chip, data.config || EM);
+}
+
+function renderTraffic(data){
+  var banner = $("traffic"), hero = $("heroWord"), sub = $("trafficSub");
+  banner.className = "traffic " + backendClass(data.traffic);
+  hero.className = "hero" + (data.traffic ? "" : " muted");
+  txt(hero, data.traffic || EM);
+  if (data.traffic){
+    txt(sub, "last answered by " + (data.traffic_host || data.traffic) +
+             " · " + (data.traffic_at || ""));
+  } else {
+    txt(sub, "NO TRAFFIC OBSERVED YET");
+  }
+}
+
+var SYNC_CAP = {
+  IN_SYNC: "IN SYNC",
+  PENDING: "↓ WAITING FOR RELOAD",
+  AWAITING_FIRST_REQUEST: "AWAITING FIRST REQUEST",
+  CANNOT_DETERMINE: "CANNOT DETERMINE"
+};
+
+function renderSync(data){
+  txt($("syncCap"), SYNC_CAP[data.sync] || SYNC_CAP.CANNOT_DETERMINE);
+  $("page").classList.toggle("pending", data.sync === "PENDING");
+}
+
+/* ------------------------------------------------------------- the footer */
+function renderFoot(data, ageMs){
+  var foot = $("foot"), stale = ageMs > STALE_MS;
+  foot.classList.toggle("stale", stale);
+  if (stale){
+    txt($("footText"), "stale " + Math.round(ageMs / 1000) + "s · src " + (data.log_path || ""));
+  } else {
+    txt($("footText"), "updated " + (data.served_at || EM) +
+                       " · src " + (data.log_path || "") + " · ");
+  }
+}
+
+function beat(){
+  beatOn = !beatOn;
+  $("beat").style.opacity = beatOn ? "1" : "0.35";
+}
+
+/* --------------------------------------------------------------- the poll */
+function render(data){
+  if (data.log_path) lastLogPath = data.log_path;
+  renderConfig(data);
+  renderTraffic(data);
+  renderSync(data);
+  renderFoot(data, Date.now() - lastOkAt);
+}
+
+function poll(){
+  fetch("/api/status", { cache: "no-store" })
+    .then(function(r){ if (!r.ok) throw new Error(r.status); return r.json(); })
+    .then(function(data){ lastOkAt = Date.now(); beat(); render(data); })
+    .catch(function(){ /* the watchdog owns the failure path */ });
+}
+
+/* The watchdog. This is the only mechanism that can detect the page's own
+   server dying: a bare meta-refresh either renders the browser's error page or
+   leaves the last good render on screen indefinitely, which is D-28's
+   forbidden failure arriving through the refresh mechanism. */
+function watchdog(){
+  var age = Date.now() - lastOkAt;
+  if (age > WATCHDOG_MS){ render(unreachable()); return; }
+  renderFoot({ log_path: lastLogPath, served_at: null }, age);
+}
+
+var lastLogPath = "";
+function unreachable(){
+  return {
+    state: "UNAVAILABLE", failing_source: "status",
+    detail: "/api/status — no response in " + (WATCHDOG_MS / 1000) + "s",
+    config: null, traffic: null, traffic_host: null, traffic_at: null,
+    sync: "CANNOT_DETERMINE", counts: { OLD: 0, NEW: 0 }, rows: [],
+    boundary: null, since_flip_s: null, served_at: null, log_path: lastLogPath
+  };
+}
+
+poll();
+setInterval(poll, POLL_MS);
+setInterval(watchdog, 250);
+</script>
+</body>
+</html>
