@@ -97,7 +97,20 @@ Plans:
   3. After the upstream flip, a new SSH session lands on `server-new` and its banner says NEW, using the identical `ssh` command as before
   4. A verify script issues an HTTP request and an SSH connection, reports which backend answered each, and exits non-zero when the observed backend does not match the expected one
 
-**Plans**: TBD
+**Plans**: 3 plans
+
+Plans:
+**Wave 1**
+
+- [ ] 03-01-PLAN.md — SSH into a backend and it says who it is: the `Banner` identity surface rendered from `BACKEND_ID`, the sshd drop-in that actually takes effect, and key distribution via the `demo-keys` volume (BACK-04/05)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 03-02-PLAN.md — The `stream` block: D-39's shared include in a second context, the stream access log to stdout, the flip over SSH, and the Phase 2 deferred question resolved with a measurement (SSH-01/02/03, CUT-04)
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 03-03-PLAN.md — `scripts/verify.sh` and `make verify`: both protocols reported on every run, non-zero on mismatch and a distinct exit when the two protocols disagree with each other (EVID-04/05)
 
 ### Phase 4: Host-Key Gotcha and the Presenter Walkthrough
 
@@ -124,7 +137,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 |-------|----------------|--------|-----------|
 | 1. Demo Up, HTTP Lands on OLD | 3/3 | Complete | 2026-07-21 |
 | 2. The Live HTTP Cutover | 4/4 | Complete | 2026-07-21 |
-| 3. SSH Through the Stream Proxy | 0/TBD | Not started | - |
+| 3. SSH Through the Stream Proxy | 0/3 | Planned | - |
 | 4. Host-Key Gotcha and the Presenter Walkthrough | 0/TBD | Not started | - |
 
 ## Requirement Coverage
