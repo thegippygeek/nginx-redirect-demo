@@ -80,9 +80,92 @@ section_backends() {
 		'docker image inspect demo-backend:1 >/dev/null 2>&1 && ! docker run --rm -e BACKEND_ID= --entrypoint /entrypoint.sh demo-backend:1 /bin/true'
 }
 
+# Pitfall 3: a typo'd selector passes `nginx -t` and reloads cleanly, then 502s
+# every request — on stage, mid-cutover. The $backend_is_valid guard in
+# nginx.conf turns that into a legible 503.
+#
+# This check is DESTRUCTIVE by design: it writes an invalid value into
+# proxy/active-backend.conf. The file is backed up first and restored by a trap,
+# so an interrupted run does not leave the rig broken.
+guard_check() {
+	_bak=$(mktemp)
+	cp proxy/active-backend.conf "$_bak"
+	trap 'cp "$_bak" proxy/active-backend.conf; docker compose exec -T proxy nginx -s reload >/dev/null 2>&1; rm -f "$_bak"; exit 1' INT TERM
+	trap 'cp "$_bak" proxy/active-backend.conf; docker compose exec -T proxy nginx -s reload >/dev/null 2>&1; rm -f "$_bak"' EXIT
+
+	sed 's/default old;/default nwe;/' "$_bak" > proxy/active-backend.conf
+	assert "Pitfall 3 invalid selector still passes nginx -t" \
+		'docker compose exec -T proxy nginx -t'
+	assert "Pitfall 3 reload succeeds despite the invalid selector" \
+		'docker compose exec -T proxy nginx -s reload'
+	sleep 1
+	assert "Pitfall 3 invalid selector returns 503, not a bare 502" \
+		'test "$(curl -sS -o /dev/null -w "%{http_code}" http://localhost:9092/)" = "503"'
+	assert "Pitfall 3 503 body names the offending value" \
+		'curl -sS http://localhost:9092/ | grep -q "nwe"'
+
+	cp "$_bak" proxy/active-backend.conf
+	docker compose exec -T proxy nginx -s reload >/dev/null 2>&1
+	trap - EXIT INT TERM
+	rm -f "$_bak"
+	sleep 1
+	assert "Pitfall 3 restore: 9092 serves 200 again" \
+		'test "$(curl -sS -o /dev/null -w "%{http_code}" http://localhost:9092/)" = "200"'
+}
+
 section_proxy() {
 	echo "--- proxy ---"
-	fail "proxy: not implemented yet — plan 01-02"
+
+	# ENV-04: the stream module is COMPILED IN. Phase 1 ships no stream block
+	# at all (D-15) — Phase 3 writes it. This proves the module is there.
+	assert "ENV-04 proxy nginx built --with-stream" \
+		'docker compose exec -T proxy nginx -V 2>&1 | grep -q -- --with-stream'
+
+	# HTTP-01: the host path, through the proxy, anchored.
+	assert "HTTP-01 localhost:9092/whoami == 'OLD server-old'" \
+		'curl -fsS http://localhost:9092/whoami | grep -q "^OLD server-old$"'
+
+	# HTTP-01 via the REAL hostname (D-01/D-02): the client container resolves
+	# app.demo.local through Docker DNS straight to the proxy container.
+	assert "HTTP-01 client -> app.demo.local:9092/whoami == 'OLD server-old'" \
+		'docker compose exec -T client curl -fsS http://app.demo.local:9092/whoami | grep -q "^OLD server-old$"'
+
+	# HTTP-02, read as URL invariance (NOT source-IP invariance — on macOS
+	# Docker Desktop every host-originated request arrives SNAT'd, see Pitfall 6).
+	assert "HTTP-02 proxied request performs 0 redirects" \
+		'test "$(curl -sSL -o /dev/null -w "%{num_redirects}" http://localhost:9092/)" = "0"'
+	assert "HTTP-02 effective URL unchanged through the proxy" \
+		'test "$(curl -sSL -o /dev/null -w "%{url_effective}" http://localhost:9092/whoami)" = "http://localhost:9092/whoami"'
+
+	# D-11 survives the hop: proxy_pass forwards the backend's own header verbatim.
+	assert "D-11 X-Backend: OLD through the proxy" \
+		'curl -sSI http://localhost:9092/ | grep -qi "^X-Backend: OLD"'
+
+	# HTTP-01 honesty: the identity above came from the BACKEND, not from us.
+	# Comments are filtered so the config's own prose cannot self-invalidate this.
+	assert "HTTP-01 honesty: no add_header in proxy/nginx.conf" \
+		'test "$(grep -v "^[[:space:]]*#" proxy/nginx.conf | grep -ci "add_header")" = "0"'
+
+	# Phase 2 EVID-01 precondition: the log names the serving backend.
+	assert "EVID-01 precondition: proxy log carries backend=OLD" \
+		'curl -fsS http://localhost:9092/whoami >/dev/null && docker compose logs proxy | grep -q "backend=OLD"'
+
+	# HTTP-02 corroborating evidence: the log records the name the client asked
+	# for, held constant across the flip. This — not $remote_addr — is the proof.
+	assert "HTTP-02 evidence: proxy log records app.demo.local:9092" \
+		'docker compose exec -T client curl -fsS http://app.demo.local:9092/whoami >/dev/null && docker compose logs proxy | grep -q "app.demo.local:9092"'
+
+	# T-01-10: loopback-bound only, and no port 22 anywhere in this phase (D-15).
+	assert "T-01-10 9092 published on loopback only" \
+		'docker compose ps --format "{{.Ports}}" | grep -q "127.0.0.1:9092->9092"'
+	assert "D-15 no host port 22 binding exists" \
+		'! docker compose ps --format "{{.Ports}}" | grep -q ":22->"'
+
+	# D-14: config changes are picked up by a graceful reload, never a restart.
+	assert "D-14 nginx -t passes inside the proxy container" \
+		'docker compose exec -T proxy nginx -t'
+
+	guard_check
 }
 
 section_redirect() {

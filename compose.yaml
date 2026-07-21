@@ -44,12 +44,39 @@ services:
       retries: 10
       start_period: 3s
 
+  # The migration endpoint. Same pinned nginx as the backends, so there is one
+  # nginx version to explain on stage.
+  proxy:
+    image: nginx:1.30-alpine
+    volumes:
+      # The DIRECTORY is mounted, not the single file (RESEARCH Pitfall 10):
+      # an editor that replaces the file's inode on the presenter's machine
+      # cannot leave the container holding stale content.
+      - ./proxy:/etc/nginx/demo:ro
+      - ./proxy/nginx.conf:/etc/nginx/nginx.conf:ro
+    ports: ["127.0.0.1:9092:9092"]
+    networks:
+      default:
+        # D-01/D-02: the client container resolves the real hostname straight
+        # to this container through Docker's embedded DNS. Deliberately NOT
+        # `extra_hosts: host-gateway`, which resolved to IPv6 and routed the
+        # client out to the host and back in, hiding its real IP from the log.
+        aliases: [app.demo.local]
+    # LOAD-BEARING, not decorative. nginx resolves `upstream ... server <name>`
+    # at config-PARSE time and aborts with `host not found in upstream` if
+    # Docker DNS cannot answer yet. Without this gate `docker compose up` fails
+    # intermittently — a demo-day failure mode (RESEARCH Pitfall 4).
+    depends_on:
+      server-old: {condition: service_healthy}
+      server-new: {condition: service_healthy}
+
   # D-02: a command source, not a service. No published ports. From Phase 3
   # this is the canonical SSH source — it reaches the backends entirely over
   # the Docker network, so no host port 22 binding is ever needed.
   client:
     build: ./client
     command: ["sleep", "infinity"]
+    depends_on: [proxy]
 
 # Container port 22 is published NOWHERE in this phase (D-15). The image
 # carries a `demo:demo` credential; keeping it off the host is threat

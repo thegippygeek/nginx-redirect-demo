@@ -30,7 +30,26 @@ logs:
 test:
 	sh scripts/smoke.sh
 
+# D-21: a full teardown AND a restore of the flip include. `down -v` removes
+# containers, volumes and networks — it does not touch host files, so without
+# the rewrite below a previous take's flip would leave the demo opening on NEW.
+#
+# The rewritten content is the FULL canonical five-line file, both comment lines
+# included. Those comments ARE the mechanism by which the Phase 2 flip reads on
+# screen (D-12); restoring only the map body would silently strip them on the
+# first reset. Keep this byte-identical to proxy/active-backend.conf.
+#
+# Note the doubled $$ — Make consumes a single $ (RESEARCH Pitfall 9).
 reset:
 	docker compose down -v
+	printf '# proxy/active-backend.conf — THE ONLY FILE THE PRESENTER EDITS\n# Change `old` to `new` to cut over. Nothing else.\nmap $$server_port $$active_backend {\n    default old;\n}\n' > proxy/active-backend.conf
 	docker compose up -d --build --wait
 	@$(MAKE) status
+
+# D-14 + RESEARCH Pitfall 3: test, then reload, then verify. Never
+# `docker compose restart proxy` — that contradicts D-14 and throws away the
+# zero-downtime point. Phase 2's `make flip` inherits this discipline.
+reload:
+	docker compose exec proxy nginx -t
+	docker compose exec proxy nginx -s reload
+	@sleep 1 && curl -fsS http://localhost:9092/whoami
