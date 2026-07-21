@@ -1,0 +1,6 @@
+# SSH host key material must never enter git. Keys are generated at container
+# runtime by backend/entrypoint.sh (never in a build layer), so nothing here
+# should ever match — this is defence in depth.
+**/ssh_host_*
+
+.DS_Store
