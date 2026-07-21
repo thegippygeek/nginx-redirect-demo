@@ -2,18 +2,18 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 3
-current_phase_name: SSH Through the Stream Proxy
-status: verifying
-stopped_at: Completed 03-03-PLAN.md
-last_updated: "2026-07-21T12:08:39.499Z"
+current_phase: 4
+current_phase_name: Host-Key Gotcha and the Presenter Walkthrough
+status: executing
+stopped_at: Completed 04-01-PLAN.md
+last_updated: "2026-07-21T13:26:43.986Z"
 last_activity: 2026-07-21
-last_activity_desc: Phase 3 execution started
+last_activity_desc: Phase 4 execution started
 progress:
-  total_phases: 3
+  total_phases: 4
   completed_phases: 3
-  total_plans: 10
-  completed_plans: 10
+  total_plans: 14
+  completed_plans: 11
 ---
 
 # Project State
@@ -23,16 +23,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-07-21)
 
 **Core value:** A live, on-stage flip of the nginx upstream from old to new where the client keeps hitting the same hostname and port, and unmistakably lands on the new server.
-**Current focus:** Phase 3 — SSH Through the Stream Proxy
+**Current focus:** Phase 4 — Host-Key Gotcha and the Presenter Walkthrough
 
 ## Current Position
 
-Phase: 3 (SSH Through the Stream Proxy) — EXECUTING
-Plan: 3 of 3
-Status: Phase complete — ready for verification
-Last activity: 2026-07-21 — Phase 3 execution started
+Phase: 4 (Host-Key Gotcha and the Presenter Walkthrough) — EXECUTING
+Plan: 2 of 4
+Status: Ready to execute
+Last activity: 2026-07-21 — Phase 4 execution started
 
-Progress: [██████████] 100%
+Progress: [████████░░] 79%
 
 ## Performance Metrics
 
@@ -68,6 +68,7 @@ Progress: [██████████] 100%
 | Phase 03 P01 | 38 min | 3 tasks | 7 files |
 | Phase 03 P02 | 25 min | 2 tasks | 2 files |
 | Phase 03 P03 | 40 min | 3 tasks | 4 files |
+| Phase 04 P01 | 24min | 3 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -106,6 +107,10 @@ Recent decisions affecting current work:
 - [Phase 3]: verify.sh exit vocabulary 0/1/2/3 — usage never shares a code with mismatch, and the cross-protocol disagreement (D-45) gets its own code so the suite can prove the branch is reachable
 - [Phase 3]: The disagreement check runs first in verify.sh's verdict — both readings are individually valid there, so a mismatch-first order would discard the fact that the flip landed on exactly one protocol
 - [Phase 3]: VERIFY_SSH_HOST is a documented test seam, not a presenter option: pointing SSH at the non-selected backend produces a genuine disagreement rather than a simulated one
+- [Phase 4]: Presenter mode is an option set on a make target (accept-new + UpdateHostKeys=no), never an env var or config file
+- [Phase 4]: Both re-arm paths ship: make reset stays the headline, make rearm is the in-place ~1s between-takes path
+- [Phase 4]: The fix must signal the daemon (SIGHUP) — a transfer-only implementation is a measured silent no-op
+- [Phase 4]: No storage mechanism for the client's trust record: compose.yaml is byte-unmodified by phase 4 plan 01
 
 ### Pending Todos
 
@@ -124,6 +129,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-07-21T12:08:23.952Z
-Stopped at: Completed 03-03-PLAN.md
+Last session: 2026-07-21T13:26:32.281Z
+Stopped at: Completed 04-01-PLAN.md
 Resume file: None

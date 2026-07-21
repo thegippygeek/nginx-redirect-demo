@@ -53,10 +53,10 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### SSH Host Key Gotcha
 
-- [ ] **KEY-01**: Demo can be run in a state where `server-new` has different SSH host keys from `server-old`
-- [ ] **KEY-02**: After cutover in that state, the client's SSH attempt fails with `WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED`
-- [ ] **KEY-03**: Presenter can apply a documented fix that transfers `server-old`'s host keys to `server-new`
-- [ ] **KEY-04**: After the fix, SSH through the proxy to `server-new` succeeds with no client-side `known_hosts` edit
+- [x] **KEY-01**: Demo can be run in a state where `server-new` has different SSH host keys from `server-old`
+- [x] **KEY-02**: After cutover in that state, the client's SSH attempt fails with `WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED`
+- [x] **KEY-03**: Presenter can apply a documented fix that transfers `server-old`'s host keys to `server-new`
+- [x] **KEY-04**: After the fix, SSH through the proxy to `server-new` succeeds with no client-side `known_hosts` edit
 
 ### Walkthrough
 
@@ -124,10 +124,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | EVID-03 | Phase 2 | Complete |
 | EVID-04 | Phase 3 | Complete |
 | EVID-05 | Phase 3 | Complete |
-| KEY-01 | Phase 4 | Pending |
-| KEY-02 | Phase 4 | Pending |
-| KEY-03 | Phase 4 | Pending |
-| KEY-04 | Phase 4 | Pending |
+| KEY-01 | Phase 4 | Complete |
+| KEY-02 | Phase 4 | Complete |
+| KEY-03 | Phase 4 | Complete |
+| KEY-04 | Phase 4 | Complete |
 | WALK-01 | Phase 4 | Pending |
 | WALK-02 | Phase 4 | Pending |
 | WALK-03 | Phase 4 | Pending |

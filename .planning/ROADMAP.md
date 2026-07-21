@@ -127,12 +127,12 @@ Plans:
   5. Someone who has never seen the demo can follow the walkthrough top to bottom and reproduce every beat
      *(Judgement, not mechanically verifiable. The doc-lint in 04-04 proves the walkthrough is self-contained and executable; criterion 5 itself rests on the explicit cold-read human check in that plan.)*
 
-**Plans**: 4 plans
+**Plans**: 1/4 plans executed
 
 Plans:
 **Wave 1**
 
-- [ ] 04-01-PLAN.md — The mechanism: presenter mode (`make ssh`), the fix (`scripts/fix-hostkeys.sh` — transfer *and* signal the daemon), and the in-place re-arm (`scripts/rearm.sh`). The whole host-key narrative runnable by hand (KEY-01/02/03/04)
+- [x] 04-01-PLAN.md — The mechanism: presenter mode (`make ssh`), the fix (`scripts/fix-hostkeys.sh` — transfer *and* signal the daemon), and the in-place re-arm (`scripts/rearm.sh`). The whole host-key narrative runnable by hand (KEY-01/02/03/04)
 
 **Wave 2** *(blocked on Wave 1 completion; 04-02 holds **exclusive use of the Docker rig** for the whole wave — 04-03 is documentation and every check in it is static, so the two are safe to run together)*
 
@@ -153,7 +153,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | 1. Demo Up, HTTP Lands on OLD | 3/3 | Complete | 2026-07-21 |
 | 2. The Live HTTP Cutover | 4/4 | Complete | 2026-07-21 |
 | 3. SSH Through the Stream Proxy | 3/3 | Complete | 2026-07-21 |
-| 4. Host-Key Gotcha and the Presenter Walkthrough | 0/4 | Planned | - |
+| 4. Host-Key Gotcha and the Presenter Walkthrough | 1/4 | In Progress|  |
 
 ## Requirement Coverage
 
