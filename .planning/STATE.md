@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 4
 current_phase_name: Host-Key Gotcha and the Presenter Walkthrough
 status: executing
-stopped_at: Completed 04-02-PLAN.md
-last_updated: "2026-07-21T13:44:05.739Z"
+stopped_at: Completed 04-03-PLAN.md
+last_updated: "2026-07-21T13:53:38.336Z"
 last_activity: 2026-07-21
 last_activity_desc: Phase 4 execution started
 progress:
   total_phases: 4
   completed_phases: 3
   total_plans: 14
-  completed_plans: 12
+  completed_plans: 13
 ---
 
 # Project State
@@ -28,11 +28,11 @@ See: .planning/PROJECT.md (updated 2026-07-21)
 ## Current Position
 
 Phase: 4 (Host-Key Gotcha and the Presenter Walkthrough) — EXECUTING
-Plan: 3 of 4
+Plan: 4 of 4
 Status: Ready to execute
 Last activity: 2026-07-21 — Phase 4 execution started
 
-Progress: [█████████░] 86%
+Progress: [█████████░] 93%
 
 ## Performance Metrics
 
@@ -70,6 +70,7 @@ Progress: [█████████░] 86%
 | Phase 03 P03 | 40 min | 3 tasks | 4 files |
 | Phase 04 P01 | 24min | 3 tasks | 3 files |
 | Phase 04 P02 | 15 min | 2 tasks | 1 files |
+| Phase 04 P03 | 14 min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -113,6 +114,8 @@ Recent decisions affecting current work:
 - [Phase 4]: The fix must signal the daemon (SIGHUP) — a transfer-only implementation is a measured silent no-op
 - [Phase 4]: No storage mechanism for the client's trust record: compose.yaml is byte-unmodified by phase 4 plan 01
 - [Phase 04]: section_hostkey's traps restore the selector by flipping FORWARD to old (scripts/flip.sh old), never by restoring an entry snapshot — guard_check()'s snapshot idiom is correct for a section that writes a known-bad value, but wrong for one whose contract is an end state. The snapshot version silently undid the section's own flip back to old when the rig happened to start on new — a passing assertion with a dirty working tree.
+- [Phase 04]: The wrong fix (ssh-keygen -R) is written as demonstration-then-contrast, never as condemnation — Shown succeeding with no editorial, then contrasted on two verified facts and closed with the fleet-scale question; the audience draws the conclusion, and the framing survives either presentational preference
+- [Phase 04]: make reset is the documented headline re-arm and make rearm is the between-takes footnote, with both measured timings stated — Honours D-51 verbatim while giving a presenter doing takes back to back the ~1 s option they will actually want, informed rather than guessed
 
 ### Pending Todos
 
@@ -131,6 +134,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-07-21T13:43:56.917Z
-Stopped at: Completed 04-02-PLAN.md
+Last session: 2026-07-21T13:53:24.099Z
+Stopped at: Completed 04-03-PLAN.md
 Resume file: None

@@ -127,7 +127,7 @@ Plans:
   5. Someone who has never seen the demo can follow the walkthrough top to bottom and reproduce every beat
      *(Judgement, not mechanically verifiable. The doc-lint in 04-04 proves the walkthrough is self-contained and executable; criterion 5 itself rests on the explicit cold-read human check in that plan.)*
 
-**Plans**: 2/4 plans executed
+**Plans**: 3/4 plans executed
 
 Plans:
 **Wave 1**
@@ -137,7 +137,7 @@ Plans:
 **Wave 2** *(blocked on Wave 1 completion; 04-02 holds **exclusive use of the Docker rig** for the whole wave — 04-03 is documentation and every check in it is static, so the two are safe to run together)*
 
 - [x] 04-02-PLAN.md — `section_hostkey`: the five beats executed for real inside the suite — prime, flip, the failure on both halves with a negative control, the fix by fingerprint equality, the byte-identical trust record, and the asserted re-arm (KEY-01/02/03/04)
-- [ ] 04-03-PLAN.md — `WALKTHROUGH.md`: pre-flight, six beats each with command, expected output and takeaway, the wrong fix shown then contrasted, and the traps section; plus the README's corrected SSH example and the two named connection modes (WALK-01/02/03)
+- [x] 04-03-PLAN.md — `WALKTHROUGH.md`: pre-flight, six beats each with command, expected output and takeaway, the wrong fix shown then contrasted, and the traps section; plus the README's corrected SSH example and the two named connection modes (WALK-01/02/03)
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
@@ -153,7 +153,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | 1. Demo Up, HTTP Lands on OLD | 3/3 | Complete | 2026-07-21 |
 | 2. The Live HTTP Cutover | 4/4 | Complete | 2026-07-21 |
 | 3. SSH Through the Stream Proxy | 3/3 | Complete | 2026-07-21 |
-| 4. Host-Key Gotcha and the Presenter Walkthrough | 2/4 | In Progress|  |
+| 4. Host-Key Gotcha and the Presenter Walkthrough | 3/4 | In Progress|  |
 
 ## Requirement Coverage
 

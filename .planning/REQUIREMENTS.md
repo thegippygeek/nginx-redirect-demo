@@ -60,9 +60,9 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Walkthrough
 
-- [ ] **WALK-01**: A written walkthrough documents the full demo narrative in order: show old → flip → show new → SSH gotcha → fix
-- [ ] **WALK-02**: Each walkthrough step lists the exact command to run and the output the presenter should expect
-- [ ] **WALK-03**: The walkthrough explains what the audience should conclude at each step
+- [x] **WALK-01**: A written walkthrough documents the full demo narrative in order: show old → flip → show new → SSH gotcha → fix
+- [x] **WALK-02**: Each walkthrough step lists the exact command to run and the output the presenter should expect
+- [x] **WALK-03**: The walkthrough explains what the audience should conclude at each step
 
 ## v2 Requirements
 
@@ -128,9 +128,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | KEY-02 | Phase 4 | Complete |
 | KEY-03 | Phase 4 | Complete |
 | KEY-04 | Phase 4 | Complete |
-| WALK-01 | Phase 4 | Pending |
-| WALK-02 | Phase 4 | Pending |
-| WALK-03 | Phase 4 | Pending |
+| WALK-01 | Phase 4 | Complete |
+| WALK-02 | Phase 4 | Complete |
+| WALK-03 | Phase 4 | Complete |
 
 **Coverage:**
 
