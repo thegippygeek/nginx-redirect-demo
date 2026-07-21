@@ -18,6 +18,9 @@ services:
     # /etc/hosts mapping of app.demo.test -> 127.0.0.1, so binding 0.0.0.0
     # would only offer the rig to conference wifi for no benefit (T-01-06).
     ports: ["127.0.0.1:9090:80"]
+    # READ-ONLY, deliberately (D-41 / T-03-05). See the volumes block at the foot.
+    volumes:
+      - demo-keys:/keys:ro
     # Load-bearing, not decorative: plan 01-02's proxy gates on
     # `condition: service_healthy` because nginx refuses to start when an
     # upstream hostname does not yet resolve (RESEARCH Pitfall 4).
@@ -37,6 +40,8 @@ services:
       BACKEND_ID: NEW
       BACKEND_COLOR: "#15803d"
     ports: ["127.0.0.1:9091:80"]
+    volumes:
+      - demo-keys:/keys:ro
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost/healthz"]
       interval: 3s
@@ -147,7 +152,14 @@ services:
   # the Docker network, so no host port 22 binding is ever needed.
   client:
     build: ./client
+    # This stays exactly as it was: it is now the ENTRYPOINT's argument, and the
+    # entrypoint execs it. No healthcheck is added here on purpose — D-02 makes
+    # this a command source, not a service, and giving it a health contract
+    # would invite depends_on edges the rig does not want.
     command: ["sleep", "infinity"]
+    # The ONLY read-write mount of the keypair. See the volumes block at the foot.
+    volumes:
+      - demo-keys:/keys
     depends_on: [proxy]
 
 # D-29: the status service reads the proxy's evidence log through this shared
@@ -160,6 +172,23 @@ services:
 # exactly the "looks second-hand" failure D-36 exists to prevent.
 volumes:
   demo-logs:
+
+  # D-41: the demo keypair. Generated on first run by client/entrypoint.sh,
+  # never committed and never written to the host filesystem (T-03-01).
+  #
+  # The read-write / read-only asymmetry deliberately mirrors the evidence-log
+  # idiom directly above: the tier that CONSUMES provably cannot alter what it
+  # consumes. Read-write on `client` only; `:ro` on both backends.
+  #
+  # A fresh named volume mounts root-owned and neither group- nor
+  # world-writable. That — plus 644 on authorized_keys — is what satisfies
+  # sshd's StrictModes for an AuthorizedKeysFile outside the user's home
+  # (T-03-05).
+  #
+  # `make reset` runs `down -v`, which removes this volume, so the keys
+  # regenerate on the next `up`. That is correct behaviour, and it is the reason
+  # nothing here needs a .gitignore entry.
+  demo-keys:
 
 # Container port 22 is published NOWHERE in this phase (D-15). The image
 # carries a `demo:demo` credential; keeping it off the host is threat
