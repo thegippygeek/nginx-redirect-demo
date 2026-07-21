@@ -2,18 +2,18 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 2
-current_phase_name: The Live HTTP Cutover
-status: verifying
-stopped_at: Completed 02-04-PLAN.md — Phase 2 complete, ready for verification
-last_updated: "2026-07-21T10:26:46.818Z"
+current_phase: 3
+current_phase_name: SSH Through the Stream Proxy
+status: executing
+stopped_at: Completed 03-01-PLAN.md
+last_updated: "2026-07-21T11:39:09.063Z"
 last_activity: 2026-07-21
-last_activity_desc: Phase 2 execution started
+last_activity_desc: Phase 3 execution started
 progress:
-  total_phases: 2
+  total_phases: 3
   completed_phases: 2
-  total_plans: 7
-  completed_plans: 7
+  total_plans: 10
+  completed_plans: 8
 ---
 
 # Project State
@@ -23,16 +23,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-07-21)
 
 **Core value:** A live, on-stage flip of the nginx upstream from old to new where the client keeps hitting the same hostname and port, and unmistakably lands on the new server.
-**Current focus:** Phase 2 — The Live HTTP Cutover
+**Current focus:** Phase 3 — SSH Through the Stream Proxy
 
 ## Current Position
 
-Phase: 2 (The Live HTTP Cutover) — EXECUTING
-Plan: 4 of 4
-Status: Phase complete — ready for verification
-Last activity: 2026-07-21 — Phase 2 execution started
+Phase: 3 (SSH Through the Stream Proxy) — EXECUTING
+Plan: 2 of 3
+Status: Ready to execute
+Last activity: 2026-07-21 — Phase 3 execution started
 
-Progress: [██████████] 100%
+Progress: [████████░░] 80%
 
 ## Performance Metrics
 
@@ -65,6 +65,7 @@ Progress: [██████████] 100%
 | Phase 02 P02 | 25 min | 3 tasks | 4 files |
 | Phase 02 P03 | 42 min | 3 tasks | 1 files |
 | Phase 02 P04 | 71 min | 2 tasks | 4 files |
+| Phase 03 P01 | 38 min | 3 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -94,6 +95,9 @@ Recent decisions affecting current work:
 - [Phase 02]: D1 closed by removing flip.sh's confirming request in the reset direction, not by reordering it — Truncate-then-request leaves one evidence line and breaks three CUT-05 assertions; the reset has nothing to seed by definition. Removing the request removes the race window itself — the page cannot see a truncation coming, so no client-side guard could make it deterministic.
 - [Phase 02]: 02-UI-SPEC.md corrected in place: row height 68px to 52px, edge bar accent to #ffffff, long-path example query-string to path-segment — A contract that contradicts the artifact it specifies stops being a contract. Each correction carries its arithmetic or its reason, so a later reader can audit the change rather than trust it.
 - [Phase 02]: The UI token audit lives in section_cutover(), and no mechanical guard is accepted until a deliberate violation has been shown to turn it red — A fifth section could run before status/index.html exists and would pass vacuously. Eight violations across seven classes were introduced, caught and reverted.
+- [Phase 03]: SSH banner is one line, byte-identical to the backend's HTTP /whoami body, so one anchored grep proves identity over both protocols
+- [Phase 03]: Demo keypair lives only in a demo-keys named volume, generated idempotently by client/entrypoint.sh; nothing key-shaped is ever committed
+- [Phase 03]: Every sshd setting this phase adds goes through /etc/ssh/sshd_config.d/10-demo.conf; the check is sshd -T, never a grep of the config
 
 ### Pending Todos
 
@@ -112,6 +116,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-07-21T10:26:37.051Z
-Stopped at: Completed 02-04-PLAN.md — Phase 2 complete, ready for verification
+Last session: 2026-07-21T11:38:59.307Z
+Stopped at: Completed 03-01-PLAN.md
 Resume file: None

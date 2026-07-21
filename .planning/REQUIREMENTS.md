@@ -19,8 +19,8 @@ Requirements for initial release. Each maps to roadmap phases.
 - [x] **BACK-01**: A `server-old` container serves HTTP and accepts SSH connections
 - [x] **BACK-02**: A `server-new` container serves HTTP and accepts SSH connections
 - [x] **BACK-03**: Each backend's HTTP response body states its own identity (OLD or NEW) and hostname
-- [ ] **BACK-04**: Each backend's SSH login banner states its own identity (OLD or NEW) and hostname
-- [ ] **BACK-05**: Presenter can log into either backend over SSH with a known credential or key
+- [x] **BACK-04**: Each backend's SSH login banner states its own identity (OLD or NEW) and hostname
+- [x] **BACK-05**: Presenter can log into either backend over SSH with a known credential or key
 
 ### HTTP Routing
 
@@ -105,8 +105,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | BACK-01 | Phase 1 | Complete |
 | BACK-02 | Phase 1 | Complete |
 | BACK-03 | Phase 1 | Complete |
-| BACK-04 | Phase 3 | Pending |
-| BACK-05 | Phase 3 | Pending |
+| BACK-04 | Phase 3 | Complete |
+| BACK-05 | Phase 3 | Complete |
 | HTTP-01 | Phase 1 | Complete |
 | HTTP-02 | Phase 1 | Complete |
 | HTTP-03 | Phase 1 | Complete |
