@@ -9,7 +9,7 @@
 # target vocabulary is stable from the start; their recipes arrive with the
 # plans that own them.
 
-.PHONY: up down status logs logs-demo test reset contrast reload check flip flip-old flip-new clear-evidence
+.PHONY: up down status logs logs-demo test reset contrast reload check flip flip-old flip-new verify clear-evidence
 
 # The evidence volume survives `docker compose down` and is removed only by
 # `down -v`, so without the truncation below a down+up cycle would resume a
@@ -115,6 +115,18 @@ flip-old:
 
 flip-new:
 	@sh scripts/flip.sh new
+
+# EVID-04/EVID-05: did the cutover land, on BOTH protocols? One HTTP request,
+# one SSH connection, one labelled line each, and a non-zero exit when the
+# answer is wrong. `make verify` alone checks the state the demo opens and
+# closes in; `make verify EXPECT=new` is the explicit form to use after a flip.
+#
+# The recipe body lives in the script for the same reason `flip`'s does: the
+# sequence needs early exits and a distinct exit-code vocabulary, and Make 3.81
+# without a one-shell directive runs every recipe line in its own shell.
+EXPECT ?= old
+verify:
+	@sh scripts/verify.sh $(EXPECT)
 
 # D-36, as an explicit lever. Truncate, never unlink: nginx holds the descriptor
 # and would keep writing into an unlinked inode. Issued into the PROXY
