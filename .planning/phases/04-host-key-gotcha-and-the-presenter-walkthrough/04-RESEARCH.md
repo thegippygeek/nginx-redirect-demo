@@ -663,19 +663,38 @@ What it deliberately does **not** cover: the browser beats (incognito, the 301 c
 | A4 | The `What's next … Gordon` hint is TTY-gated Compose behaviour | Pitfall 5 | Low — both the appearance under a pty and its suppression by `DOCKER_CLI_HINTS=false` were measured. Only the *reason* (TTY gating) is inferred |
 | A5 | A human reviewer is available to run the criterion-5 checkpoint | Validation Architecture | Medium — if no second person exists, criterion 5 must be recorded as **judgement, unverified** in VERIFICATION.md rather than quietly marked passed |
 
-## Open Questions
+## Open Questions (RESOLVED)
+
+> All three were decided at planning time on 2026-07-21 and are recorded as executable plan content,
+> not as prose. Each resolution is marked inline below with the plan that owns it. Nothing here is
+> still open.
 
 1. **How hard should the walkthrough lean on "`ssh-keygen -R` is the wrong fix"?**
+   **(RESOLVED — 04-03, "Plan-level decisions": demonstration-then-contrast.** Show the client-side
+   deletion succeeding with no editorial; then state the two verified facts — two steps rather than
+   one, and the second was a blind trust decision — and ask the room how many machines hold that
+   record. The audience draws the conclusion. Recommendation adopted verbatim; it survives either
+   presentational preference, so no user arbitration was required before execution. The framing is
+   still surfaced for confirmation in 04-04's blocking criterion-5 checkpoint, item 6.)
    - What we know: it works, in three lines, for one client (verified); and it requires a second, blind trust decision to actually connect (verified). Both facts are strong.
    - What's unclear: tone. CONTEXT's open concern flags this as a presentation judgement the user may want to set personally. There is a real difference between "here is the instinct, and here is why it does not scale" and "this is what people do wrong."
    - Recommendation: write it as **demonstration then contrast** — show `-R` succeeding without editorial, then ask the room how many laptops are on their network. Let the audience draw the conclusion. That framing survives either preference and does not need the user to arbitrate before execution.
 
 2. **Should `make rearm` exist, given D-51 names `make reset` as the re-arm path?**
+   **(RESOLVED — 04-01 ships both; 04-03 documents `make reset` as the headline.** D-51 is honoured
+   verbatim: `make reset` is the documented re-arm path in both README and `WALKTHROUGH.md`, with
+   `make rearm` as the between-takes fast path and both measured timings stated so the presenter's
+   choice is informed. `section_hostkey` in 04-02 drives the in-place re-arm, which it needs
+   regardless since it cannot invoke a full teardown from inside the suite.)
    - What we know: `reset` works and takes 16.5 s; in-place re-arm works and takes ~1 s with no rebuild and no IP churn.
    - What's unclear: whether adding a second re-arm command contradicts D-51 or merely refines it.
    - Recommendation: ship both and document `make reset` as the headline (honouring D-51 verbatim) with `make rearm` as the between-takes fast path. The smoke section needs a fast, non-rebuilding re-arm regardless — it cannot call `make reset` from inside the suite.
 
 3. **Does the README's Phase 3 SSH example need correcting in this phase?**
+   **(RESOLVED — yes; 04-03 Task 2 owns the correction.** The documented command is routed through
+   the presenter-mode `make ssh` target, which fixes the inaccuracy and introduces the two named
+   connection modes in the same edit. An acceptance criterion asserts the old copy-pasteable form
+   claiming a clean login no longer appears.)
    - What we know: as written it shows a clean first connection that a fresh rig does not produce (Pitfall 6).
    - Recommendation: yes, correct it — routing it through `make ssh` fixes the inaccuracy and introduces presenter mode in the same edit. Small, and it is exactly the class of defect criterion 5 exists to catch.
 

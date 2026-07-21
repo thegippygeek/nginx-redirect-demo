@@ -134,14 +134,14 @@ Plans:
 
 - [ ] 04-01-PLAN.md — The mechanism: presenter mode (`make ssh`), the fix (`scripts/fix-hostkeys.sh` — transfer *and* signal the daemon), and the in-place re-arm (`scripts/rearm.sh`). The whole host-key narrative runnable by hand (KEY-01/02/03/04)
 
-**Wave 2** *(blocked on Wave 1 completion)*
+**Wave 2** *(blocked on Wave 1 completion; 04-02 holds **exclusive use of the Docker rig** for the whole wave — 04-03 is documentation and every check in it is static, so the two are safe to run together)*
 
 - [ ] 04-02-PLAN.md — `section_hostkey`: the five beats executed for real inside the suite — prime, flip, the failure on both halves with a negative control, the fix by fingerprint equality, the byte-identical trust record, and the asserted re-arm (KEY-01/02/03/04)
 - [ ] 04-03-PLAN.md — `WALKTHROUGH.md`: pre-flight, six beats each with command, expected output and takeaway, the wrong fix shown then contrasted, and the traps section; plus the README's corrected SSH example and the two named connection modes (WALK-01/02/03)
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 04-04-PLAN.md — `section_walkthrough`: the four-part executable contract that stops the document rotting, the phase gate from cold, and the criterion-5 cold read recorded as judgement rather than claimed as evidence (WALK-01/02/03)
+- [ ] 04-04-PLAN.md — `section_walkthrough`: the four-part executable contract that stops the document rotting, the phase gate from cold, and the criterion-5 cold read as a **blocking human checkpoint** — `autonomous: false` (WALK-01/02/03)
 
 ## Progress
 
