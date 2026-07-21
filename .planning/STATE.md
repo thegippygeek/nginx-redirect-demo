@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 4
 current_phase_name: Host-Key Gotcha and the Presenter Walkthrough
 status: executing
-stopped_at: Completed 04-01-PLAN.md
-last_updated: "2026-07-21T13:26:43.986Z"
+stopped_at: Completed 04-02-PLAN.md
+last_updated: "2026-07-21T13:44:05.739Z"
 last_activity: 2026-07-21
 last_activity_desc: Phase 4 execution started
 progress:
   total_phases: 4
   completed_phases: 3
   total_plans: 14
-  completed_plans: 11
+  completed_plans: 12
 ---
 
 # Project State
@@ -28,11 +28,11 @@ See: .planning/PROJECT.md (updated 2026-07-21)
 ## Current Position
 
 Phase: 4 (Host-Key Gotcha and the Presenter Walkthrough) — EXECUTING
-Plan: 2 of 4
+Plan: 3 of 4
 Status: Ready to execute
 Last activity: 2026-07-21 — Phase 4 execution started
 
-Progress: [████████░░] 79%
+Progress: [█████████░] 86%
 
 ## Performance Metrics
 
@@ -69,6 +69,7 @@ Progress: [████████░░] 79%
 | Phase 03 P02 | 25 min | 2 tasks | 2 files |
 | Phase 03 P03 | 40 min | 3 tasks | 4 files |
 | Phase 04 P01 | 24min | 3 tasks | 3 files |
+| Phase 04 P02 | 15 min | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -111,6 +112,7 @@ Recent decisions affecting current work:
 - [Phase 4]: Both re-arm paths ship: make reset stays the headline, make rearm is the in-place ~1s between-takes path
 - [Phase 4]: The fix must signal the daemon (SIGHUP) — a transfer-only implementation is a measured silent no-op
 - [Phase 4]: No storage mechanism for the client's trust record: compose.yaml is byte-unmodified by phase 4 plan 01
+- [Phase 04]: section_hostkey's traps restore the selector by flipping FORWARD to old (scripts/flip.sh old), never by restoring an entry snapshot — guard_check()'s snapshot idiom is correct for a section that writes a known-bad value, but wrong for one whose contract is an end state. The snapshot version silently undid the section's own flip back to old when the rig happened to start on new — a passing assertion with a dirty working tree.
 
 ### Pending Todos
 
@@ -129,6 +131,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-07-21T13:26:32.281Z
-Stopped at: Completed 04-01-PLAN.md
+Last session: 2026-07-21T13:43:56.917Z
+Stopped at: Completed 04-02-PLAN.md
 Resume file: None
