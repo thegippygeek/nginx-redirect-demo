@@ -54,6 +54,23 @@ services:
       # cannot leave the container holding stale content.
       - ./proxy:/etc/nginx/demo:ro
       - ./proxy/nginx.conf:/etc/nginx/nginx.conf:ro
+      # The evidence log (D-29). Read-write here, read-only for the status
+      # service. The mount point is /var/log/demo and NOT the image's own log
+      # directory: that ships access.log as a symlink to the process stdout, and
+      # a volume mounted over it pre-populates from the image layer including
+      # that symlink — after which no real file is ever created and a reader
+      # hangs rather than erroring.
+      - demo-logs:/var/log/demo
+    # The Phase 1 verifier flagged this container as the one with no healthcheck.
+    # It probes the unpublished :8081 listener, never :9092: the smoke suite
+    # writes an invalid selector into 9092's path on purpose, and the probe would
+    # otherwise land in the projected evidence table every 3 seconds.
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8081/nginx-health"]
+      interval: 3s
+      timeout: 2s
+      retries: 10
+      start_period: 3s
     # 9092 proxies, 9093 redirects. Same explicit loopback binding as the
     # backends (T-01-15) — the rig is never offered to conference wifi.
     ports: ["127.0.0.1:9092:9092", "127.0.0.1:9093:9093"]
@@ -79,6 +96,17 @@ services:
     build: ./client
     command: ["sleep", "infinity"]
     depends_on: [proxy]
+
+# D-29: the status service reads the proxy's evidence log through this shared
+# named volume. Mounting the Docker socket to read container stdout was
+# considered and rejected — a real privilege escalation in a demo that might be
+# run on someone else's machine.
+#
+# It survives `docker compose down` and is removed only by `down -v`, so `make
+# up` truncates the log: silently resuming a prior take's counters mid-count is
+# exactly the "looks second-hand" failure D-36 exists to prevent.
+volumes:
+  demo-logs:
 
 # Container port 22 is published NOWHERE in this phase (D-15). The image
 # carries a `demo:demo` credential; keeping it off the host is threat
