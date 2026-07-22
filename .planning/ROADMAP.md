@@ -168,8 +168,21 @@ Plans:
   3. The status page reads the **switch's** log: recent-request rows show the client's real `remote_addr` (not a downstream proxy's address), and `backend=OLD/NEW` is carried back from the backend's own `X-Backend` header through the proxy chain, asserted by no proxy tier
   4. The status page shows the current switch selector (which proxy is active) and recent requests with the backend that answered each — the v1 EVID-02/03 guarantees, re-sourced from the switch
 
-**Plans**: TBD
+**Plans**: 3 plans
 **UI hint**: yes
+
+Plans:
+**Wave 1**
+
+- [ ] 05-01-PLAN.md — The three nginx tiers: switch (flip surface + evidence writer, upstreams re-pointed, +remote field) and two static single-upstream proxies, each config-tested under nginx -t (SW-01, SW-02, PROX-01, PROX-02, EV2-01, EV2-02)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 05-02-PLAN.md — The rig comes up: compose split into switch + proxy-old + proxy-new with the health cascade, alias moved to the switch, evidence re-sourced (client remote_addr rendered), make up re-pointed, topology smoke sections reconciled (SW-01, PROX-01/02/03, EV2-01/02/03, MIG-01)
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 05-03-PLAN.md — The flip re-homed: flip.sh + make reset re-pointed to the switch, section_cutover reconciled, make test green across the HTTP surface with the switch-SSH sections deferred to Phase 6 (SW-04, EV2-03)
 
 ### Phase 6: The SSH Stream Flip and Pre-Flip Validation
 
@@ -211,7 +224,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | 2. The Live HTTP Cutover | 4/4 | Complete | 2026-07-21 |
 | 3. SSH Through the Stream Proxy | 3/3 | Complete | 2026-07-21 |
 | 4. Host-Key Gotcha and the Presenter Walkthrough | 4/4 | Complete | 2026-07-22 |
-| 5. The Switch and Two Static Proxies — HTTP Cutover Re-Homed | 0/TBD | Not started | - |
+| 5. The Switch and Two Static Proxies — HTTP Cutover Re-Homed | 0/3 | Planned | - |
 | 6. The SSH Stream Flip and Pre-Flip Validation | 0/TBD | Not started | - |
 | 7. Instant Rollback, v1 Preservation, and the v2 Walkthrough | 0/TBD | Not started | - |
 
