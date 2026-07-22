@@ -85,27 +85,28 @@ section_backends() {
 # nginx.conf turns that into a legible 503.
 #
 # This check is DESTRUCTIVE by design: it writes an invalid value into
-# proxy/active-backend.conf. The file is backed up first and restored by a trap,
-# so an interrupted run does not leave the rig broken.
+# switch/active-proxy.conf. The file is backed up first and restored by a trap,
+# so an interrupted run does not leave the rig broken. Re-homed to the switch:
+# the flip surface and the reload both live there now (Phase 5).
 guard_check() {
 	_bak=$(mktemp)
-	cp proxy/active-backend.conf "$_bak"
-	trap 'cp "$_bak" proxy/active-backend.conf; docker compose exec -T proxy nginx -s reload >/dev/null 2>&1; rm -f "$_bak"; exit 1' INT TERM
-	trap 'cp "$_bak" proxy/active-backend.conf; docker compose exec -T proxy nginx -s reload >/dev/null 2>&1; rm -f "$_bak"' EXIT
+	cp switch/active-proxy.conf "$_bak"
+	trap 'cp "$_bak" switch/active-proxy.conf; docker compose exec -T switch nginx -s reload >/dev/null 2>&1; rm -f "$_bak"; exit 1' INT TERM
+	trap 'cp "$_bak" switch/active-proxy.conf; docker compose exec -T switch nginx -s reload >/dev/null 2>&1; rm -f "$_bak"' EXIT
 
-	sed 's/default old;/default nwe;/' "$_bak" > proxy/active-backend.conf
+	sed 's/default old;/default nwe;/' "$_bak" > switch/active-proxy.conf
 	assert "Pitfall 3 invalid selector still passes nginx -t" \
-		'docker compose exec -T proxy nginx -t'
+		'docker compose exec -T switch nginx -t'
 	assert "Pitfall 3 reload succeeds despite the invalid selector" \
-		'docker compose exec -T proxy nginx -s reload'
+		'docker compose exec -T switch nginx -s reload'
 	sleep 1
 	assert "Pitfall 3 invalid selector returns 503, not a bare 502" \
 		'test "$(curl -sS -o /dev/null -w "%{http_code}" http://localhost:9092/)" = "503"'
 	assert "Pitfall 3 503 body names the offending value" \
 		'curl -sS http://localhost:9092/ | grep -q "nwe"'
 
-	cp "$_bak" proxy/active-backend.conf
-	docker compose exec -T proxy nginx -s reload >/dev/null 2>&1
+	cp "$_bak" switch/active-proxy.conf
+	docker compose exec -T switch nginx -s reload >/dev/null 2>&1
 	trap - EXIT INT TERM
 	rm -f "$_bak"
 	sleep 1
@@ -116,59 +117,99 @@ guard_check() {
 section_proxy() {
 	echo "--- proxy ---"
 
-	# ENV-04: the stream module is COMPILED IN. Phase 1 ships no stream block
-	# at all (D-15) — Phase 3 writes it. This proves the module is there.
-	assert "ENV-04 proxy nginx built --with-stream" \
-		'docker compose exec -T proxy nginx -V 2>&1 | grep -q -- --with-stream'
+	# MIG-01: one command brings up the full six-service topology healthy
+	# (switch, proxy-old, proxy-new, server-old, server-new, status). The client
+	# has no healthcheck by design (D-02), so the healthy count is 6, not 7.
+	assert "MIG-01 six services report healthy under one compose up" \
+		'test "$(docker compose ps --format "{{.Service}} {{.Status}}" | grep -c healthy)" -ge 6'
 
-	# HTTP-01: the host path, through the proxy, anchored.
+	# ENV-04: the stream module is COMPILED IN. The two static proxies now carry
+	# a live SSH stream (Phase 5), so proving the module is present matters here.
+	assert "ENV-04 nginx built --with-stream" \
+		'docker compose exec -T switch nginx -V 2>&1 | grep -q -- --with-stream'
+
+	# HTTP-01: the host path, through the switch, anchored.
 	assert "HTTP-01 localhost:9092/whoami == 'OLD server-old'" \
 		'curl -fsS http://localhost:9092/whoami | grep -q "^OLD server-old$"'
 
-	# HTTP-01 via the REAL hostname (D-01/D-02): the client container resolves
-	# app.demo.test through Docker DNS straight to the proxy container.
-	assert "HTTP-01 client -> app.demo.test:9092/whoami == 'OLD server-old'" \
-		'docker compose exec -T client curl -fsS http://app.demo.test:9092/whoami | grep -q "^OLD server-old$"'
+	# SW-01 via the REAL hostname (D-01/D-02): the client container resolves
+	# app.demo.test through Docker DNS straight to the SWITCH — its unchanged
+	# command lands on OLD through switch->proxy-old->server-old.
+	assert "SW-01 client -> app.demo.test:9092/whoami == 'OLD server-old'" \
+		'docker compose exec -T client curl -fsS http://app.demo.test:9092/whoami | grep -qx "OLD server-old"'
+
+	# SW-01 chain, proven from the switch's own evidence: a request that answers
+	# OLD is recorded by the switch as having gone THROUGH proxy-old (upstream =
+	# proxy-old's container IP) TO server-old (bhost). The stock nginx combined
+	# log on the static proxies never names its upstream, so the switch evidence
+	# line is the honest single source that shows the whole two-hop chain.
+	assert "SW-01 the switch evidence records the OLD chain: upstream proxy-old, bhost server-old" \
+		'_po=$(docker inspect -f "{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}" "$(docker compose ps -q proxy-old)"); _u="/sw01chain-$$"; docker compose exec -T client curl -fsS "http://app.demo.test:9092$_u" >/dev/null 2>&1; sleep 0.5; _line=$(docker compose exec -T switch grep "$_u" /var/log/demo/access.log | tail -1); echo "$_line" | grep -q "\"backend\":\"OLD\"" && echo "$_line" | grep -q "\"bhost\":\"server-old\"" && echo "$_line" | grep -q "$_po"'
+
+	# PROX-01/02: each static proxy statically forwards its ONE fixed backend,
+	# reached from the switch by service name over the demo network.
+	assert "PROX-01 proxy-old statically forwards to server-old" \
+		'docker compose exec -T switch curl -fsS http://proxy-old/whoami | grep -qx "OLD server-old"'
+	assert "PROX-02 proxy-new statically forwards to server-new" \
+		'docker compose exec -T switch curl -fsS http://proxy-new/whoami | grep -qx "NEW server-new"'
+
+	# PROX-03: distinct aliases resolve on the demo network.
+	assert "PROX-03 app-old / app-new aliases resolve" \
+		'docker compose exec -T switch getent hosts app-old.demo.test app-new.demo.test'
+
+	# T-05-04: the two static proxies publish NOTHING to the host — internal-only.
+	# A host-published port renders as `127.0.0.1:NNNN->80/tcp` (an `->` arrow) in
+	# the Ports field; an unpublished container port renders as a bare `80/tcp`.
+	# Asserting no `->` on either static proxy proves they expose no host ports.
+	assert "T-05-04 the static proxies publish no host ports" \
+		'! docker compose ps --format "{{.Service}} {{.Ports}}" | grep -E "^proxy-(old|new)" | grep -q "->"'
 
 	# HTTP-02, read as URL invariance (NOT source-IP invariance — on macOS
 	# Docker Desktop every host-originated request arrives SNAT'd, see Pitfall 6).
 	assert "HTTP-02 proxied request performs 0 redirects" \
 		'test "$(curl -sSL -o /dev/null -w "%{num_redirects}" http://localhost:9092/)" = "0"'
-	assert "HTTP-02 effective URL unchanged through the proxy" \
+	assert "HTTP-02 effective URL unchanged through the switch" \
 		'test "$(curl -sSL -o /dev/null -w "%{url_effective}" http://localhost:9092/whoami)" = "http://localhost:9092/whoami"'
 
-	# D-11 survives the hop: proxy_pass forwards the backend's own header verbatim.
-	assert "D-11 X-Backend: OLD through the proxy" \
-		'curl -sSI http://localhost:9092/ | grep -qi "^X-Backend: OLD"'
+	# ---- EV2-02 / T-05-01 (block-on-high): the identity chain is UNTAMPERED ----
+	# The backend owns X-Backend; no proxy tier emits one of its own. This is the
+	# runtime assertion 05-01 deferred: config-absence of add_header is necessary
+	# but not sufficient. `^X-Backend:` anchors the colon so X-Backend-Host does
+	# NOT match — exactly one identity header survives a transparent hop.
+	assert "EV2-02 exactly one X-Backend passes through a static proxy (no proxy-injected identity)" \
+		'test "$(docker compose exec -T switch curl -sD- -o /dev/null http://proxy-old/whoami | grep -ci "^X-Backend:")" = "1"'
+	assert "EV2-02 the backend's own X-Backend: OLD survives both hops to the client" \
+		'curl -sD- -o /dev/null http://localhost:9092/whoami | grep -qi "^X-Backend: OLD"'
 
-	# HTTP-01 honesty: the identity above came from the BACKEND, not from us.
-	# Comments are filtered so the config's own prose cannot self-invalidate this.
-	assert "HTTP-01 honesty: no add_header in proxy/nginx.conf" \
-		'test "$(grep -v "^[[:space:]]*#" proxy/nginx.conf | grep -ci "add_header")" = "0"'
+	# HTTP-01/EV2-02 honesty: the identity came from the BACKEND, not from any
+	# tier of the rig. Comments are filtered so a config's own prose cannot
+	# self-invalidate this — and it now runs across ALL THREE nginx tiers.
+	assert "EV2-02 honesty: no add_header identity in switch/proxy-old/proxy-new configs" \
+		'test "$(cat switch/nginx.conf proxy-old/nginx.conf proxy-new/nginx.conf | grep -v "^[[:space:]]*#" | grep -ci "add_header")" = "0"'
 
-	# Phase 2 EVID-01 precondition: the log names the serving backend.
-	assert "EVID-01 precondition: proxy log carries backend=OLD" \
-		'curl -fsS http://localhost:9092/whoami >/dev/null && docker compose logs proxy | grep -q "backend=OLD"'
+	# Phase 2 EVID-01 precondition: the switch stdout log names the serving backend.
+	assert "EVID-01 precondition: switch log carries backend=OLD" \
+		'curl -fsS http://localhost:9092/whoami >/dev/null && docker compose logs switch | grep -q "backend=OLD"'
 
 	# HTTP-02 corroborating evidence: the log records the name the client asked
 	# for, held constant across the flip. This — not $remote_addr — is the proof.
-	assert "HTTP-02 evidence: proxy log records app.demo.test:9092" \
-		'docker compose exec -T client curl -fsS http://app.demo.test:9092/whoami >/dev/null && docker compose logs proxy | grep -q "app.demo.test:9092"'
+	assert "HTTP-02 evidence: switch log records app.demo.test:9092" \
+		'docker compose exec -T client curl -fsS http://app.demo.test:9092/whoami >/dev/null && docker compose logs switch | grep -q "app.demo.test:9092"'
 
-	# T-01-10: loopback-bound only, and no port 22 anywhere in this phase (D-15).
+	# T-01-10: loopback-bound only, and no port 22 published anywhere this phase.
 	#
 	# `docker compose port`, not a grep of `ps --format {{.Ports}}`: once 9093
-	# joined the proxy, Compose collapsed the two adjacent publishes into the
+	# joined the switch, Compose collapsed the two adjacent publishes into the
 	# range `127.0.0.1:9092-9093->9092-9093/tcp` and the literal grep stopped
 	# matching. `port` resolves one container port at a time and is immune.
 	assert "T-01-10 9092 published on loopback only" \
-		'docker compose port proxy 9092 | grep -q "^127.0.0.1:9092$"'
+		'docker compose port switch 9092 | grep -q "^127.0.0.1:9092$"'
 	assert "D-15 no host port 22 binding exists" \
 		'! docker compose ps --format "{{.Ports}}" | grep -q ":22->"'
 
 	# D-14: config changes are picked up by a graceful reload, never a restart.
-	assert "D-14 nginx -t passes inside the proxy container" \
-		'docker compose exec -T proxy nginx -t'
+	assert "D-14 nginx -t passes inside the switch container" \
+		'docker compose exec -T switch nginx -t'
 
 	guard_check
 }
@@ -191,12 +232,12 @@ section_redirect() {
 	# T-01-13: the Location target is a LITERAL address in the config, so no
 	# request-supplied value can steer where the client is sent.
 	assert "T-01-13 Location target is literal, not \$host-derived" \
-		'grep "return 301" proxy/nginx.conf | grep -q "app.demo.test:9090.request_uri"'
+		'grep "return 301" switch/nginx.conf | grep -q "app.demo.test:9090.request_uri"'
 
 	# T-01-15: loopback-bound, matching 9090/9091/9092. See the T-01-10 note in
 	# section_proxy for why this uses `port` rather than a `ps` grep.
 	assert "T-01-15 9093 published on loopback only" \
-		'docker compose port proxy 9093 | grep -q "^127.0.0.1:9093$"'
+		'docker compose port switch 9093 | grep -q "^127.0.0.1:9093$"'
 
 	# ---- HTTP-04: the contrast IS the assertion ----
 	# Both halves live in this one section deliberately. "9093 changes the URL"
@@ -237,7 +278,7 @@ section_redirect() {
 	# backend to name. The dashes are the honest record of that — and a
 	# teaching moment when the presenter tails the log.
 	assert "Pattern 6: the 9093 request logs upstream=- and backend=-" \
-		'curl -sS -o /dev/null http://localhost:9093/whoami && docker compose logs proxy | grep ":9093" | grep -q "upstream=- backend=- "'
+		'curl -sS -o /dev/null http://localhost:9093/whoami && docker compose logs switch | grep ":9093" | grep -q "upstream=- backend=- "'
 }
 
 # settle_flip <target> — wait until the flip has actually landed.
