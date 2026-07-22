@@ -375,12 +375,17 @@ one up, which is exactly why the rollback was a single reload and not a recovery
 make reset
 ```
 
-**Expect** — a full teardown and rebuild, ending on the status table:
+**Expect** — a full teardown and rebuild, ending on the status table (all seven v2 services healthy, the switch back on `old`):
 
 ```
-demo-old     Up (healthy)
-demo-new     Up (healthy)
-demo-proxy   Up (healthy)
+SERVICE      STATUS                  PORTS
+client       Up
+proxy-new    Up (healthy)            80/tcp
+proxy-old    Up (healthy)            80/tcp
+server-new   Up (healthy)            127.0.0.1:9091->80/tcp
+server-old   Up (healthy)            127.0.0.1:9090->80/tcp
+status       Up (healthy)            127.0.0.1:9094->9094/tcp
+switch       Up (healthy)            127.0.0.1:9092-9093->9092-9093/tcp
 hosts: OK  app.demo.test -> 127.0.0.1
 ```
 
