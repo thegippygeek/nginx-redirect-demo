@@ -297,8 +297,8 @@ settle_flip() {
 	_target=$1
 	_i=0
 	while [ "$_i" -lt 25 ]; do
-		_got=$(docker compose exec -T proxy curl -sS --max-time 1 \
-			http://localhost:8081/active-backend 2>/dev/null | tr -d '\r\n')
+		_got=$(docker compose exec -T switch curl -sS --max-time 1 \
+			http://localhost:8081/active-proxy 2>/dev/null | tr -d '\r\n')
 		if [ "$_got" = "$_target" ]; then
 			sleep 0.2
 			return 0
@@ -315,9 +315,9 @@ settle_flip() {
 # with everything running.
 restore_flip_state() {
 	_flipbak=$(mktemp)
-	cp proxy/active-backend.conf "$_flipbak"
-	trap 'cp "$_flipbak" proxy/active-backend.conf; docker compose up -d server-old server-new proxy status >/dev/null 2>&1; docker compose exec -T proxy nginx -s reload >/dev/null 2>&1; rm -f "$_flipbak"; exit 1' INT TERM
-	trap 'cp "$_flipbak" proxy/active-backend.conf; docker compose up -d server-old server-new proxy status >/dev/null 2>&1; docker compose exec -T proxy nginx -s reload >/dev/null 2>&1; rm -f "$_flipbak"' EXIT
+	cp switch/active-proxy.conf "$_flipbak"
+	trap 'cp "$_flipbak" switch/active-proxy.conf; docker compose up -d server-old server-new switch proxy-old proxy-new status >/dev/null 2>&1; docker compose exec -T switch nginx -s reload >/dev/null 2>&1; rm -f "$_flipbak"; exit 1' INT TERM
+	trap 'cp "$_flipbak" switch/active-proxy.conf; docker compose up -d server-old server-new switch proxy-old proxy-new status >/dev/null 2>&1; docker compose exec -T switch nginx -s reload >/dev/null 2>&1; rm -f "$_flipbak"' EXIT
 }
 
 # ---- the evidence service (02-02) ----------------------------------------
@@ -362,18 +362,18 @@ jrows() {
 # destroy a deliberately-constructed two-transition window.
 manual_flip() {
 	_mtmp=$(mktemp)
-	sed "s/default [A-Za-z0-9_.-]*;/default $1;/" proxy/active-backend.conf >"$_mtmp"
-	cp "$_mtmp" proxy/active-backend.conf
+	sed "s/default [A-Za-z0-9_.-]*;/default $1;/" switch/active-proxy.conf >"$_mtmp"
+	cp "$_mtmp" switch/active-proxy.conf
 	rm -f "$_mtmp"
-	docker compose exec -T proxy nginx -s reload >/dev/null 2>&1
+	docker compose exec -T switch nginx -s reload >/dev/null 2>&1
 	settle_flip "$1"
 }
 
 # Clears what restore_flip_state installed, once the section has put the rig
 # back on `old` under its own power.
 finish_flip_state() {
-	cp "$_flipbak" proxy/active-backend.conf
-	docker compose exec -T proxy nginx -s reload >/dev/null 2>&1
+	cp "$_flipbak" switch/active-proxy.conf
+	docker compose exec -T switch nginx -s reload >/dev/null 2>&1
 	trap - EXIT INT TERM
 	rm -f "$_flipbak"
 }
@@ -394,7 +394,7 @@ section_cutover() {
 	sh scripts/flip.sh old >/dev/null 2>&1
 	settle_flip old
 	_base=$(mktemp)
-	cp proxy/active-backend.conf "$_base"
+	cp switch/active-proxy.conf "$_base"
 
 	assert "CUT-01 flip.sh new succeeds with both backends healthy" \
 		'sh scripts/flip.sh new'
@@ -402,16 +402,16 @@ section_cutover() {
 
 	# Plain `diff`, so a changed line shows as exactly one `<` plus one `>`.
 	assert "CUT-01 exactly one line differs from the pre-flip baseline" \
-		"test \"\$(diff '$_base' proxy/active-backend.conf | grep -c '^[<>]')\" = '2'"
+		"test \"\$(diff '$_base' switch/active-proxy.conf | grep -c '^[<>]')\" = '2'"
 
 	# D-12: the file the audience reads on screen stays five lines, both
 	# presenter comments intact. This goes red the instant a future phase
 	# reintroduces a structure nobody can read in full on a projector.
 	assert "CUT-01 the include is still 5 lines with both presenter comments" \
-		'test "$(wc -l < proxy/active-backend.conf)" -eq 5 && test "$(grep -c "^#" proxy/active-backend.conf)" -eq 2'
+		'test "$(wc -l < switch/active-proxy.conf)" -eq 5 && test "$(grep -c "^#" switch/active-proxy.conf)" -eq 2'
 
 	assert "CUT-01 nginx -t passes against the flipped config" \
-		'docker compose exec -T proxy nginx -t'
+		'docker compose exec -T switch nginx -t'
 
 	# ---- CUT-02: the IDENTICAL command string, held in a variable ----
 	# The assertion is that the string did not change, not merely that the
@@ -450,7 +450,7 @@ section_cutover() {
 
 	# ---- CUT-05: no container is restarted, ever (D-14) ----
 
-	_ids=$(docker compose ps -q proxy server-old server-new)
+	_ids=$(docker compose ps -q switch server-old server-new)
 	_started_before=$(echo "$_ids" | xargs docker inspect -f '{{.State.StartedAt}}' 2>/dev/null)
 	sh scripts/flip.sh old >/dev/null 2>&1
 	settle_flip old
@@ -465,27 +465,30 @@ section_cutover() {
 	# D-36: flipping back to old is the between-takes reset, so the next take
 	# starts with an empty evidence log rather than a prior take's counters.
 	assert "CUT-05 flip.sh old leaves the evidence log at 0 bytes" \
-		'test "$(docker compose exec -T proxy sh -c "wc -c < /var/log/demo/access.log" | tr -d "[:space:]")" = "0"'
+		'test "$(docker compose exec -T switch sh -c "wc -c < /var/log/demo/access.log" | tr -d "[:space:]")" = "0"'
 
 	# ---- D-35: the health gate refuses, and touches nothing ----
-	# nginx parses BOTH upstream blocks on every reload, so a stopped backend
-	# blocks the flip in BOTH directions (RESEARCH Pitfall 3).
+	# The switch parses BOTH upstream blocks on every reload, so a stopped
+	# UPSTREAM PROXY (proxy-old/proxy-new) blocks the flip in BOTH directions
+	# (RESEARCH Pitfall 2). The re-homed gate probes the static proxies' own
+	# :8081/nginx-health, not the backends one hop further, so this stops the
+	# proxy the target upstream resolves to.
 
-	docker compose stop server-new >/dev/null 2>&1
-	_sha_before=$(shasum proxy/active-backend.conf | awk '{print $1}')
+	docker compose stop proxy-new >/dev/null 2>&1
+	_sha_before=$(shasum switch/active-proxy.conf | awk '{print $1}')
 	sh scripts/flip.sh new >"$_out" 2>&1
 	_rc=$?
-	_sha_after=$(shasum proxy/active-backend.conf | awk '{print $1}')
+	_sha_after=$(shasum switch/active-proxy.conf | awk '{print $1}')
 
-	assert "D-35 flip refuses and exits non-zero when a backend is down" \
+	assert "D-35 flip refuses and exits non-zero when an upstream proxy is down" \
 		"test '$_rc' -ne 0"
-	assert "D-35 the refusal names the backend that is not answering" \
-		"grep -q 'server-new' '$_out'"
+	assert "D-35 the refusal names the upstream proxy that is not answering" \
+		"grep -q 'proxy-new' '$_out'"
 	assert "D-35 the config file is byte-identical after the refusal" \
 		"test -n '$_sha_before' && test '$_sha_before' = '$_sha_after'"
 
-	docker compose up -d --wait server-new >/dev/null 2>&1
-	assert "D-35 with server-new back, the same flip succeeds" \
+	docker compose up -d --wait proxy-new >/dev/null 2>&1
+	assert "D-35 with proxy-new back, the same flip succeeds" \
 		'sh scripts/flip.sh new'
 	settle_flip new
 
@@ -493,7 +496,7 @@ section_cutover() {
 
 	curl -sS -o /dev/null http://localhost:9092/whoami
 	sleep 0.3
-	docker compose exec -T proxy cat /var/log/demo/access.log >"$_evtmp" 2>/dev/null
+	docker compose exec -T switch cat /var/log/demo/access.log >"$_evtmp" 2>/dev/null
 	assert "EVID-01 the last :9092 evidence line reads backend NEW after a flip" \
 		"grep '\"port\":\"9092\"' '$_evtmp' | tail -1 | grep -q '\"backend\":\"NEW\"'"
 
@@ -502,27 +505,27 @@ section_cutover() {
 	_uniq="/evid-adjacency-$$"
 	curl -sS -o /dev/null "http://localhost:9092$_uniq"
 	sleep 0.3
-	docker compose exec -T proxy cat /var/log/demo/access.log >"$_evtmp" 2>/dev/null
-	_stdout_hits=$(docker compose logs proxy 2>/dev/null | grep -c "$_uniq")
+	docker compose exec -T switch cat /var/log/demo/access.log >"$_evtmp" 2>/dev/null
+	_stdout_hits=$(docker compose logs switch 2>/dev/null | grep -c "$_uniq")
 	_file_hits=$(grep -c "$_uniq" "$_evtmp")
 	assert "EVID-01 one request appears exactly once in EACH of the two sinks" \
 		"test '$_stdout_hits' = '1' && test '$_file_hits' = '1'"
 
 	# Pitfall 7: the 3-second healthcheck must never push a synthetic row into
 	# the projected table. `access_log off;` on :8081 suppresses BOTH sinks.
-	_lines_before=$(docker compose exec -T proxy sh -c 'wc -l < /var/log/demo/access.log' 2>/dev/null | tr -d '[:space:]')
+	_lines_before=$(docker compose exec -T switch sh -c 'wc -l < /var/log/demo/access.log' 2>/dev/null | tr -d '[:space:]')
 	i=0
 	while [ "$i" -lt 10 ]; do
-		docker compose exec -T proxy curl -sS http://localhost:8081/nginx-health >/dev/null 2>&1
+		docker compose exec -T switch curl -sS http://localhost:8081/nginx-health >/dev/null 2>&1
 		i=$((i + 1))
 	done
-	_lines_after=$(docker compose exec -T proxy sh -c 'wc -l < /var/log/demo/access.log' 2>/dev/null | tr -d '[:space:]')
+	_lines_after=$(docker compose exec -T switch sh -c 'wc -l < /var/log/demo/access.log' 2>/dev/null | tr -d '[:space:]')
 	assert "EVID-01 ten :8081 probes add zero evidence lines" \
 		"test -n '$_lines_before' && test '$_lines_before' = '$_lines_after'"
 
 	# Concurrency: thirty requests in flight, thirty complete JSON objects. nginx
 	# writes each line with a single write(), so no line is interleaved.
-	docker compose exec -T proxy sh -c ': > /var/log/demo/access.log' >/dev/null 2>&1
+	docker compose exec -T switch sh -c ': > /var/log/demo/access.log' >/dev/null 2>&1
 	i=0
 	while [ "$i" -lt 30 ]; do
 		curl -sS -o /dev/null http://localhost:9092/whoami &
@@ -530,7 +533,7 @@ section_cutover() {
 	done
 	wait
 	sleep 0.5
-	docker compose exec -T proxy cat /var/log/demo/access.log >"$_evtmp" 2>/dev/null
+	docker compose exec -T switch cat /var/log/demo/access.log >"$_evtmp" 2>/dev/null
 	_total=$(wc -l <"$_evtmp" | tr -d '[:space:]')
 	_wellformed=$(grep -c '^{.*}$' "$_evtmp")
 	assert "EVID-01 thirty parallel requests produce exactly thirty complete lines" \
@@ -538,11 +541,11 @@ section_cutover() {
 
 	# D-36 / Pattern 5: truncate, never unlink. nginx holds the descriptor with
 	# O_APPEND, so the next write lands at offset 0 with no sparse NUL hole.
-	docker compose exec -T proxy sh -c ': > /var/log/demo/access.log' >/dev/null 2>&1
-	_zero=$(docker compose exec -T proxy sh -c 'wc -c < /var/log/demo/access.log' 2>/dev/null | tr -d '[:space:]')
+	docker compose exec -T switch sh -c ': > /var/log/demo/access.log' >/dev/null 2>&1
+	_zero=$(docker compose exec -T switch sh -c 'wc -c < /var/log/demo/access.log' 2>/dev/null | tr -d '[:space:]')
 	curl -sS -o /dev/null http://localhost:9092/whoami
 	sleep 0.3
-	docker compose exec -T proxy cat /var/log/demo/access.log >"$_evtmp" 2>/dev/null
+	docker compose exec -T switch cat /var/log/demo/access.log >"$_evtmp" 2>/dev/null
 	assert "EVID-01 truncation leaves the evidence file at 0 bytes" \
 		"test '$_zero' = '0'"
 	assert "EVID-01 the post-truncation line is a complete JSON object at offset 0" \
@@ -554,8 +557,8 @@ section_cutover() {
 	# Matched by regex on the backend= token, never by field position: indices
 	# shift by one under `-t` and by two more under D-32's service prefix.
 	_awk='/backend=NEW/ { printf "\033[1;97;42m NEW \033[0m %s\n", $0; next } /backend=OLD/ { printf "\033[1;97;43m OLD \033[0m %s\n", $0; next } { print }'
-	_awk_in=$(docker compose logs --tail 5 -t proxy 2>/dev/null | grep -c .)
-	_awk_out=$(docker compose logs --tail 5 -t proxy 2>/dev/null | awk "$_awk" | grep -c .)
+	_awk_in=$(docker compose logs --tail 5 -t switch 2>/dev/null | grep -c .)
+	_awk_out=$(docker compose logs --tail 5 -t switch 2>/dev/null | awk "$_awk" | grep -c .)
 	assert "EVID-01 the logs-demo awk filter passes every line through" \
 		"test '$_awk_in' != '0' && test '$_awk_in' = '$_awk_out'"
 
@@ -585,7 +588,7 @@ section_cutover() {
 	assert "T-02-04 the status container CANNOT truncate the evidence it reports" \
 		'docker compose exec -T status sh -c "test -r /var/log/demo/access.log" && ! docker compose exec -T status sh -c ": > /var/log/demo/access.log"'
 	assert "T-02-04 the status container CANNOT alter the config it reports" \
-		'docker compose exec -T status sh -c "test -r /etc/nginx/demo/active-backend.conf" && ! docker compose exec -T status sh -c ": > /etc/nginx/demo/active-backend.conf"'
+		'docker compose exec -T status sh -c "test -r /etc/nginx/demo/active-proxy.conf" && ! docker compose exec -T status sh -c ": > /etc/nginx/demo/active-proxy.conf"'
 
 	# T-02-06 / D-29: the container-runtime socket is a full privilege
 	# escalation on a machine that may not be the presenter's. Never mounted.
@@ -612,8 +615,8 @@ section_cutover() {
 	# The gap between editing the file and nginx picking it up is the most
 	# instructive part of the mechanism (D-27). Edit WITHOUT reloading.
 	manual_edit=$(mktemp)
-	sed 's/default old;/default new;/' proxy/active-backend.conf >"$manual_edit"
-	cp "$manual_edit" proxy/active-backend.conf
+	sed 's/default old;/default new;/' switch/active-proxy.conf >"$manual_edit"
+	cp "$manual_edit" switch/active-proxy.conf
 	rm -f "$manual_edit"
 	sleep 0.5
 	status_get "$_st"
@@ -623,7 +626,7 @@ section_cutover() {
 	assert "EVID-02 config edited without a reload: sync PENDING, config NEW, traffic still OLD" \
 		"test '$_pcfg' = 'NEW' && test '$_ptraf' = 'OLD' && test '$_psync' = 'PENDING'"
 
-	docker compose exec -T proxy nginx -s reload >/dev/null 2>&1
+	docker compose exec -T switch nginx -s reload >/dev/null 2>&1
 	settle_flip new
 	curl -sS -o /dev/null http://localhost:9092/whoami
 	sleep 0.4
@@ -639,7 +642,7 @@ section_cutover() {
 	# file-only design keeps rendering a confident backend reading — the single
 	# most damaging defect available in this phase.
 
-	docker compose stop proxy >/dev/null 2>&1
+	docker compose stop switch >/dev/null 2>&1
 	_i=0
 	_ustate=""
 	while [ "$_i" -lt 10 ]; do
@@ -664,7 +667,7 @@ section_cutover() {
 	assert "D-25 stopping the proxy does NOT stop the status service" \
 		"test '$_ustatus_up' = 'running'"
 
-	docker compose up -d --wait proxy >/dev/null 2>&1
+	docker compose up -d --wait switch >/dev/null 2>&1
 	settle_flip new
 	curl -sS -o /dev/null http://localhost:9092/whoami
 	sleep 0.4
@@ -677,8 +680,8 @@ section_cutover() {
 	# The evidence log stays perfectly healthy throughout; only the config goes.
 
 	_cbak=$(mktemp)
-	cp proxy/active-backend.conf "$_cbak"
-	rm -f proxy/active-backend.conf
+	cp switch/active-proxy.conf "$_cbak"
+	rm -f switch/active-proxy.conf
 	sleep 0.5
 	status_get "$_st"
 	_dstate=$(jfield "$_st" state)
@@ -688,7 +691,7 @@ section_cutover() {
 	_dcfg=$(grep -cE '^  "config": "(OLD|NEW)"' "$_st")
 	_dtraf=$(grep -cE '^  "traffic": "(OLD|NEW)"' "$_st")
 	_drows=$(jrows "$_st")
-	cp "$_cbak" proxy/active-backend.conf
+	cp "$_cbak" switch/active-proxy.conf
 	rm -f "$_cbak"
 	sleep 0.5
 
@@ -757,12 +760,12 @@ section_cutover() {
 	status_get "$_st"
 	_hc1o=$(jnest "$_st" OLD)
 	_hc1n=$(sed -n 's/^    "NEW": \([0-9]*\).*/\1/p' "$_st" | head -1)
-	_hcl1=$(docker compose exec -T proxy sh -c 'wc -l < /var/log/demo/access.log' 2>/dev/null | tr -d '[:space:]')
+	_hcl1=$(docker compose exec -T switch sh -c 'wc -l < /var/log/demo/access.log' 2>/dev/null | tr -d '[:space:]')
 	sleep 10
 	status_get "$_st"
 	_hc2o=$(jnest "$_st" OLD)
 	_hc2n=$(sed -n 's/^    "NEW": \([0-9]*\).*/\1/p' "$_st" | head -1)
-	_hcl2=$(docker compose exec -T proxy sh -c 'wc -l < /var/log/demo/access.log' 2>/dev/null | tr -d '[:space:]')
+	_hcl2=$(docker compose exec -T switch sh -c 'wc -l < /var/log/demo/access.log' 2>/dev/null | tr -d '[:space:]')
 	assert "EVID-03 three healthcheck intervals with no user traffic change no reading" \
 		"test -n '$_hc1o' && test '$_hc1o' = '$_hc2o' && test '$_hc1n' = '$_hc2n' && test '$_hcl1' = '$_hcl2'"
 
@@ -802,7 +805,7 @@ section_cutover() {
 
 	# EVID-01: nginx writes each line with a single write(), but a reader that
 	# opens the file mid-write can still see a partial trailing line.
-	docker compose exec -T proxy sh -c 'printf "{\"t\":\"2026-01-01T00:00:00+00:00\",\"ms\":\"1,\"pa" >> /var/log/demo/access.log' >/dev/null 2>&1
+	docker compose exec -T switch sh -c 'printf "{\"t\":\"2026-01-01T00:00:00+00:00\",\"ms\":\"1,\"pa" >> /var/log/demo/access.log' >/dev/null 2>&1
 	sleep 0.4
 	_torncode=$(curl -sS -o /dev/null -w '%{http_code}' http://localhost:9094/api/status)
 	status_get "$_st"
@@ -852,7 +855,7 @@ section_cutover() {
 	assert "D1 the reset flip issues NO confirming request" \
 		"test \"\$(grep -c 'localhost:9092/whoami  ->' '$_d1r')\" = '0'"
 	assert "D1 the truncation is the reset's last observable act — 0 bytes, no post-truncation row" \
-		'test "$(docker compose exec -T proxy sh -c "wc -c < /var/log/demo/access.log" | tr -d "[:space:]")" = "0"'
+		'test "$(docker compose exec -T switch sh -c "wc -c < /var/log/demo/access.log" | tr -d "[:space:]")" = "0"'
 	rm -f "$_d1f" "$_d1r"
 
 	rm -f "$_st"
@@ -971,7 +974,7 @@ section_cutover() {
 	assert "UI-SPEC long-text: the path cell ends in an ellipsis" \
 		'grep -E "^\.row \.c-path\{" status/index.html | grep -q "text-overflow:ellipsis"'
 	assert "UI-SPEC long-text: the path column is a fixed width, so nothing reflows" \
-		'grep -q "grid-template-columns: .75rem 12.5rem 38.75rem 7.5rem 14rem;" status/index.html'
+		'grep -q "grid-template-columns: .75rem 12.5rem 26.25rem 7.5rem 12.5rem 14rem;" status/index.html'
 	assert "UI-SPEC long-text: the renderer routes the path through the 28-char helper" \
 		'test "$(grep -c "var PATH_MAX = 28;" status/index.html)" = "1" && grep -q "shortPath(r.path)" status/index.html'
 
@@ -1007,6 +1010,34 @@ section_cutover() {
 	# this file too without the audit tripping over its own text.
 	assert "T-02-16 the escalation token never appears in a command position anywhere" \
 		'test "$(grep -cE "(^[[:space:]]*|[;&(] *)sudo " Makefile scripts/flip.sh scripts/smoke.sh compose.yaml | grep -vc ":0$")" = "0"'
+
+	# ---- EV2-03: the status selector re-sources from the SWITCH ----
+	#
+	# The flip is now the switch's map edit + reload (Task 1). This proves the
+	# status page reads its selector from switch/active-proxy.conf via the switch
+	# container, not v1's proxy include: a flip.sh cutover moves
+	# /api/status.config to NEW with the recent-requests table populated, and the
+	# reset moves it back to OLD. Driven by flip.sh, so it inherits the re-homed
+	# container target rather than re-deriving it.
+	_ev=$(mktemp)
+	sh scripts/flip.sh new >/dev/null 2>&1
+	settle_flip new
+	curl -sS -o /dev/null http://localhost:9092/whoami
+	sleep 0.4
+	status_get "$_ev"
+	_evcfg=$(jfield "$_ev" config)
+	_evrows=$(jrows "$_ev")
+	assert "EV2-03 after a switch flip to new, /api/status.config is NEW with rows populated" \
+		"test '$_evcfg' = 'NEW' && test '$_evrows' -gt 0"
+	sh scripts/flip.sh old >/dev/null 2>&1
+	settle_flip old
+	curl -sS -o /dev/null http://localhost:9092/whoami
+	sleep 0.4
+	status_get "$_ev"
+	_evcfg2=$(jfield "$_ev" config)
+	assert "EV2-03 the switch flip back to old re-sources /api/status.config to OLD" \
+		"test '$_evcfg2' = 'OLD'"
+	rm -f "$_ev"
 
 	# ---- leave the rig the way the presenter expects to find it ----
 	sh scripts/flip.sh old >/dev/null 2>&1
