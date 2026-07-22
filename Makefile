@@ -9,7 +9,7 @@
 # target vocabulary is stable from the start; their recipes arrive with the
 # plans that own them.
 
-.PHONY: up down status logs logs-demo test reset contrast reload check flip flip-old flip-new verify verify-new-stack clear-evidence ssh fix-hostkeys rearm
+.PHONY: up down status logs logs-demo test reset contrast reload check flip flip-old flip-new verify verify-new-stack clear-evidence ssh fix-hostkeys rearm proxies-untouched
 
 # The evidence volume survives `docker compose down` and is removed only by
 # `down -v`, so without the truncation below a down+up cycle would resume a
@@ -208,3 +208,13 @@ rearm:
 clear-evidence:
 	@docker compose exec -T switch sh -c ': > /var/log/demo/access.log'
 	@echo "evidence log cleared — the next take starts from zero"
+
+# VAL-04, the presenter's "proof, not a claim" for the old-proxy-untouched beat.
+# The two STATIC proxy configs never change across a whole cutover+rollback
+# cycle — only switch/active-proxy.conf's one word does. This prints their
+# sha256 so the room sees identical hashes before and after the flip rather
+# than being asked to take it on trust. `shasum -a 256` is macOS-native; the
+# GNU coreutils single-name variant is absent on a stock Mac, so it is never
+# used here (D-35).
+proxies-untouched:
+	@shasum -a 256 proxy-old/nginx.conf proxy-new/nginx.conf
