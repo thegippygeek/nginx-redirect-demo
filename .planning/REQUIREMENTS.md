@@ -64,9 +64,46 @@ Requirements for initial release. Each maps to roadmap phases.
 - [x] **WALK-02**: Each walkthrough step lists the exact command to run and the output the presenter should expect
 - [x] **WALK-03**: The walkthrough explains what the audience should conclude at each step
 
-## v2 Requirements
+## v2.0 Requirements — Two-Proxy Switch Topology
 
-Deferred to future release. Tracked but not in current roadmap.
+Current milestone. A front `switch` nginx flips traffic between two static proxies (`proxy-old`, `proxy-new`), enabling pre-flip validation and instant rollback. Same map-flip + reload mechanism as v1, one layer up.
+
+### Switch (the flip surface)
+
+- [ ] **SW-01**: A `switch` nginx service is the client's only endpoint, reachable at `app.demo.test` on HTTP 9092 and SSH 22 — unchanged from the client's point of view versus v1
+- [ ] **SW-02**: The switch selects between the two proxies via a single one-line map (`default old` → `new`) in `switch/active-proxy.conf` — the only file the presenter edits to cut over
+- [ ] **SW-03**: The same selector governs both the HTTP 9092 path and the SSH 22 stream path, so one edit flips both protocols
+- [ ] **SW-04**: Cutover is performed by editing that one line and reloading the switch (`nginx -s reload`) — no client-side change, same mechanism as v1's CUT-01/CUT-02
+
+### Static Proxies
+
+- [ ] **PROX-01**: A `proxy-old` service statically forwards HTTP and SSH to `server-old` and is never reconfigured during the demo
+- [ ] **PROX-02**: A `proxy-new` service statically forwards HTTP and SSH to `server-new` and is never reconfigured during the demo
+- [ ] **PROX-03**: Each static proxy carries a distinct network alias — `app-old.demo.test` and `app-new.demo.test` — reachable directly on the demo network
+
+### Pre-flip Validation & Rollback
+
+- [ ] **VAL-01**: Presenter can reach `app-new.demo.test` over HTTP and land on `server-new` *before* any cutover, while live traffic on `app.demo.test` still lands on `server-old`
+- [ ] **VAL-02**: Presenter can `ssh app-new.demo.test` and see `server-new`'s banner before cutover, proving the new stack's SSH path is live
+- [ ] **VAL-03**: After cutover, the presenter can roll back to old by flipping the switch selector back and reloading — no teardown
+- [ ] **VAL-04**: The two static proxies' configs are provably unchanged across the whole cutover — "the old proxy is never touched" is literally true
+
+### Evidence (switch-sourced)
+
+- [ ] **EV2-01**: The access/evidence log the status page reads is the **switch's** log, capturing the client's real `remote_addr` (not a downstream proxy's address)
+- [ ] **EV2-02**: The answering backend's own `X-Backend` identity header propagates back through the proxy chain to the switch log, so `backend=OLD/NEW` reflects the true backend and is asserted by no proxy tier
+- [ ] **EV2-03**: The status page shows the current switch selector (which proxy is active) and recent requests with the backend that answered — the v1 EVID-02/03 guarantees, re-sourced from the switch
+- [ ] **EV2-04**: The verify script asserts over both HTTP and SSH which backend answered through the switch, and can target `app-new.demo.test` directly for pre-flip validation
+
+### Migration Story & Continuity
+
+- [ ] **MIG-01**: The whole v2 topology (switch + two proxies + two backends + status) comes up with one `docker compose up`, preserving ENV-01 across the added services
+- [ ] **MIG-02**: The presenter walkthrough narrates the v2 story: validate the new stack via `app-new.demo.test` → flip the switch → land on new → (host-key gotcha, inherited from v1) → roll back → the old proxy was never touched
+- [ ] **MIG-03**: The v1 single-proxy demo remains available and unbroken (e.g. via git tag or a preserved compose file), not deleted by v2 work
+
+## Future / Deferred Requirements
+
+Deferred to a later release. Tracked but not in the current roadmap.
 
 ### Infrastructure
 
@@ -149,4 +186,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-07-21*
-*Last updated: 2026-07-21 after roadmap creation*
+*Last updated: 2026-07-22 — added v2.0 (two-proxy switch topology) requirements: SW, PROX, VAL, EV2, MIG*
