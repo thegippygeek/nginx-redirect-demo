@@ -2329,6 +2329,88 @@ section_hostkey() {
 		'grep -qE "UserKnownHostsFile=/dev/null" scripts/verify.sh && grep -qE "StrictHostKeyChecking=no" scripts/verify.sh'
 }
 
+# section_rollback — VAL-03 (instant rollback, no teardown) + VAL-04 (the two
+# static proxies are byte-unchanged, and not even reloaded) proven over ONE real
+# cutover-then-rollback cycle: flip.sh new (THE CUTOVER), then flip.sh old (THE
+# ROLLBACK). No new mechanism — assertions over the existing flip.
+#
+# DESTRUCTIVE by design: it flips the selector through a full cycle. It installs
+# restore_flip_state at the top so an interrupted run still lands the rig on OLD
+# with everything up, and calls finish_flip_state at the end once it has put the
+# rig back on OLD under its own power. Mirrors section_cutover's discipline.
+section_rollback() {
+	echo "--- rollback ---"
+
+	restore_flip_state
+
+	# Restated locally so `sh scripts/smoke.sh rollback` runs standalone — assert
+	# reaches its condition through a fresh `sh -c`, which inherits exported
+	# VARIABLES but not shell functions. DEMO-ONLY host-key options, the same set
+	# section_validate/section_ssh justify at length. TEST mode, never presenter (D-52).
+	export SSH_OPTS="-o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+
+	# Baseline: OLD, under this section's own power.
+	sh scripts/flip.sh old >/dev/null 2>&1
+	settle_flip old
+
+	# ---- BEFORE state (rig on OLD) ----
+	# Host-side observation only (D-29: no Docker socket is mounted into any
+	# container). The id list spans the switch, both backends and BOTH static
+	# proxies so "nothing restarted" covers the whole rig.
+	_ids=$(docker compose ps -q switch server-old server-new proxy-old proxy-new)
+	_started_before=$(echo "$_ids" | xargs docker inspect -f '{{.State.StartedAt}}' 2>/dev/null)
+	# shasum -a 256 (the macOS-native tool; the GNU coreutils variant is absent on
+	# stock darwin, so this idiom deliberately avoids it).
+	_sha_before=$(shasum -a 256 proxy-old/nginx.conf proxy-new/nginx.conf | awk '{print $1}')
+	# Worker PIDs catch a RELOAD that StartedAt (a restart) would miss. pgrep is
+	# present in nginx:1.30-alpine.
+	_pw_before=$(docker compose exec -T proxy-old pgrep -f 'nginx: worker'; docker compose exec -T proxy-new pgrep -f 'nginx: worker')
+
+	# ---- THE CUTOVER ----
+	sh scripts/flip.sh new >/dev/null 2>&1
+	settle_flip new
+	_sha_mid=$(shasum -a 256 proxy-old/nginx.conf proxy-new/nginx.conf | awk '{print $1}')
+
+	# ---- THE ROLLBACK (VAL-03): flip the switch back to old ----
+	sh scripts/flip.sh old >/dev/null 2>&1
+	settle_flip old
+
+	# ---- AFTER state (rig back on OLD) ----
+	_sha_after=$(shasum -a 256 proxy-old/nginx.conf proxy-new/nginx.conf | awk '{print $1}')
+	_started_after=$(echo "$_ids" | xargs docker inspect -f '{{.State.StartedAt}}' 2>/dev/null)
+	_pw_after=$(docker compose exec -T proxy-old pgrep -f 'nginx: worker'; docker compose exec -T proxy-new pgrep -f 'nginx: worker')
+
+	# VAL-04 byte-identity: the two static configs never change across the cycle —
+	# the old proxy is never touched, proven by checksum at three real points.
+	assert "VAL-04 static proxy configs byte-identical before==after-flip==after-rollback (shasum -a 256)" \
+		"test -n '$_sha_before' && test '$_sha_before' = '$_sha_mid' && test '$_sha_mid' = '$_sha_after'"
+
+	# VAL-03/04 no teardown: no container is recreated across the whole cycle.
+	assert "VAL-03/04 no container restarted across cutover+rollback (StartedAt unchanged)" \
+		"test -n '$_started_before' && test '$_started_before' = '$_started_after'"
+
+	# VAL-04 not-even-reloaded: the static proxies' workers never respawned — only
+	# the switch reloaded (D-14). StartedAt catches a restart; this catches a reload.
+	assert "VAL-04 static proxy workers never respawned (proxies not even reloaded)" \
+		"test -n '$_pw_before' && test '$_pw_before' = '$_pw_after'"
+
+	# VAL-03 both protocols land OLD after the rollback. HTTP on the host at 9092.
+	assert "VAL-03 after rollback: HTTP localhost:9092/whoami -> OLD server-old" \
+		'curl -fsS http://localhost:9092/whoami | grep -qx "OLD server-old"'
+
+	# VAL-03 SSH via the non-piped capture idiom (VAL-02): assign via $(... 2>&1),
+	# read $? on the VERY NEXT line, grep the captured VARIABLE — ssh is NEVER on
+	# the left of a pipe (a pipeline would mask a host-key failure as exit 0).
+	# `true` emits no stdout, so the captured line can only be the pre-auth banner.
+	assert "VAL-03 after rollback: ssh app.demo.test banner -> OLD server-old (non-piped capture)" \
+		'out=$(docker compose exec -T client timeout 10 ssh $SSH_OPTS demo@app.demo.test true 2>&1)
+		 rc=$?
+		 test "$rc" -eq 0 && printf "%s\n" "$out" | grep -qx "OLD server-old"'
+
+	# Clear the trap once the rig is back on OLD under its own power.
+	finish_flip_state
+}
+
 section=${1:-all}
 case "$section" in
 backends) section_backends ;;
@@ -2337,6 +2419,7 @@ redirect) section_redirect ;;
 cutover) section_cutover ;;
 validate) section_validate ;;
 ssh) section_ssh ;;
+rollback) section_rollback ;;
 walkthrough) section_walkthrough ;;
 hostkey) section_hostkey ;;
 all)
