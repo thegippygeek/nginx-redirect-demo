@@ -24,7 +24,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 **v2.0 — Two-Proxy Switch Topology** *(subsequent milestone; v1 shipped as Phases 1–4 above, preserved at git tag `v1.0`)*
 
-- [ ] **Phase 5: The Switch and Two Static Proxies — HTTP Cutover Re-Homed** - A front `switch` flips HTTP between two static proxies; the client still hits `app.demo.test:9092` unchanged and the status page is re-sourced from the switch
+- [x] **Phase 5: The Switch and Two Static Proxies — HTTP Cutover Re-Homed** - A front `switch` flips HTTP between two static proxies; the client still hits `app.demo.test:9092` unchanged and the status page is re-sourced from the switch (completed 2026-07-22)
 - [ ] **Phase 6: The SSH Stream Flip and Pre-Flip Validation** - The switch's one-line selector governs SSH:22 too, and the presenter can `curl`/`ssh app-new.demo.test` to prove the new stack live before flipping — with the verify script re-pointed
 - [ ] **Phase 7: Instant Rollback, v1 Preservation, and the v2 Walkthrough** - Flip the switch back for an instant teardown-free rollback, prove the static proxies were never touched, keep v1 runnable, and rewrite the walkthrough for the v2 story
 
@@ -174,15 +174,15 @@ Plans:
 Plans:
 **Wave 1**
 
-- [ ] 05-01-PLAN.md — The three nginx tiers: switch (flip surface + evidence writer, upstreams re-pointed, +remote field) and two static single-upstream proxies, each config-tested under nginx -t (SW-01, SW-02, PROX-01, PROX-02, EV2-01, EV2-02)
+- [x] 05-01-PLAN.md — The three nginx tiers: switch (flip surface + evidence writer, upstreams re-pointed, +remote field) and two static single-upstream proxies, each config-tested under nginx -t (SW-01, SW-02, PROX-01, PROX-02, EV2-01, EV2-02)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 05-02-PLAN.md — The rig comes up: compose split into switch + proxy-old + proxy-new with the health cascade, alias moved to the switch, evidence re-sourced (client remote_addr rendered), make up re-pointed, topology smoke sections reconciled (SW-01, PROX-01/02/03, EV2-01/02/03, MIG-01)
+- [x] 05-02-PLAN.md — The rig comes up: compose split into switch + proxy-old + proxy-new with the health cascade, alias moved to the switch, evidence re-sourced (client remote_addr rendered), make up re-pointed, topology smoke sections reconciled (SW-01, PROX-01/02/03, EV2-01/02/03, MIG-01)
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 05-03-PLAN.md — The flip re-homed: flip.sh + make reset re-pointed to the switch, section_cutover reconciled, make test green across the HTTP surface with the switch-SSH sections deferred to Phase 6 (SW-04, EV2-03)
+- [x] 05-03-PLAN.md — The flip re-homed: flip.sh + make reset re-pointed to the switch, section_cutover reconciled, make test green across the HTTP surface with the switch-SSH sections deferred to Phase 6 (SW-04, EV2-03)
 
 ### Phase 6: The SSH Stream Flip and Pre-Flip Validation
 
@@ -224,7 +224,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | 2. The Live HTTP Cutover | 4/4 | Complete | 2026-07-21 |
 | 3. SSH Through the Stream Proxy | 3/3 | Complete | 2026-07-21 |
 | 4. Host-Key Gotcha and the Presenter Walkthrough | 4/4 | Complete | 2026-07-22 |
-| 5. The Switch and Two Static Proxies — HTTP Cutover Re-Homed | 0/3 | Planned | - |
+| 5. The Switch and Two Static Proxies — HTTP Cutover Re-Homed | 3/3 | Complete    | 2026-07-22 |
 | 6. The SSH Stream Flip and Pre-Flip Validation | 0/TBD | Not started | - |
 | 7. Instant Rollback, v1 Preservation, and the v2 Walkthrough | 0/TBD | Not started | - |
 

@@ -2,18 +2,18 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Two-Proxy Switch Topology
-current_phase_name: defining requirements
-status: executing
+current_phase: 6
+current_phase_name: The SSH Stream Flip and Pre-Flip Validation
+status: planning
 stopped_at: Completed 04-04-PLAN.md — final plan of v1
-last_updated: "2026-07-22T01:18:44.537Z"
+last_updated: "2026-07-22T02:27:11.855Z"
 last_activity: 2026-07-22
-last_activity_desc: Milestone v2.0 started
+last_activity_desc: Phase 05 complete, transitioned to Phase 6
 progress:
-  total_phases: 0
-  completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
-  percent: 0
+  total_phases: 1
+  completed_phases: 1
+  total_plans: 3
+  completed_plans: 3
 ---
 
 # Project State
@@ -23,20 +23,20 @@ progress:
 See: .planning/PROJECT.md (updated 2026-07-21)
 
 **Core value:** A live, on-stage flip of the nginx upstream from old to new where the client keeps hitting the same hostname and port, and unmistakably lands on the new server.
-**Current focus:** Phase 4 — Host-Key Gotcha and the Presenter Walkthrough
+**Current focus:** Phase 05 — the-switch-and-two-static-proxies-http-cutover-re-homed
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
-Status: Ready to execute
-Last activity: 2026-07-22 — Milestone v2.0 started
+Phase: 6 — The SSH Stream Flip and Pre-Flip Validation
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-07-22 — Phase 05 complete, transitioned to Phase 6
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 0
+- Total plans completed: 3
 - Average duration: —
 - Total execution time: —
 
@@ -44,7 +44,7 @@ Last activity: 2026-07-22 — Milestone v2.0 started
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| - | - | - | - |
+| 05 | 3 | - | - |
 
 **Recent Trend:**
 

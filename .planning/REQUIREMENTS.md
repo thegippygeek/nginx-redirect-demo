@@ -70,7 +70,7 @@ Current milestone. A front `switch` nginx flips traffic between two static proxi
 
 ### Switch (the flip surface)
 
-- [ ] **SW-01**: A `switch` nginx service is the client's only endpoint, reachable at `app.demo.test` on HTTP 9092 and SSH 22 — unchanged from the client's point of view versus v1
+- [x] **SW-01**: A `switch` nginx service is the client's only endpoint, reachable at `app.demo.test` on HTTP 9092 and SSH 22 — unchanged from the client's point of view versus v1
 - [x] **SW-02**: The switch selects between the two proxies via a single one-line map (`default old` → `new`) in `switch/active-proxy.conf` — the only file the presenter edits to cut over
 - [ ] **SW-03**: The same selector governs both the HTTP 9092 path and the SSH 22 stream path, so one edit flips both protocols
 - [x] **SW-04**: Cutover is performed by editing that one line and reloading the switch (`nginx -s reload`) — no client-side change, same mechanism as v1's CUT-01/CUT-02
@@ -169,7 +169,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | WALK-01 | Phase 4 | Complete |
 | WALK-02 | Phase 4 | Complete |
 | WALK-03 | Phase 4 | Complete |
-| SW-01 | Phase 5 | Pending |
+| SW-01 | Phase 5 | Complete |
 | SW-02 | Phase 5 | Complete |
 | SW-03 | Phase 6 | Pending |
 | SW-04 | Phase 5 | Complete |
