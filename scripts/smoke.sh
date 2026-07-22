@@ -717,6 +717,21 @@ section_cutover() {
 	assert "EVID-03 a uniquely-pathed :9092 request is rows[0] with the backend that answered it" \
 		"test '$_r0path' = '$_upath' && test '$_r0back' = 'OLD'"
 
+	# ---- EV2-01: rows[0].remote is the CLIENT's real address, not a proxy hop ----
+	# `remote` is the one net-new evidence field this phase adds. The switch is the
+	# FRONT tier, so its $remote_addr is the client's — never a static-proxy IP. The
+	# _render_row unit test proves the field is rendered, but only a live assertion
+	# catches the real EV2-01 failure mode: the switch logging a proxy hop's IP
+	# instead of the client's (a config that loses $remote_addr, or a hop that
+	# overwrites it). rows[0] is the fresh /evid-row0-$$ :9092 request snapshotted
+	# above. Both static-proxy IPs are resolved with the same docker inspect idiom
+	# the SW-01 chain check uses, and remote must equal NEITHER.
+	_r0remote=$(jrow0 "$_st" remote)
+	_po_ip=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$(docker compose ps -q proxy-old)")
+	_pn_ip=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$(docker compose ps -q proxy-new)")
+	assert "EV2-01 rows[0].remote is present and the real client, not a static-proxy IP" \
+		"test -n '$_r0remote' && test '$_r0remote' != '$_po_ip' && test '$_r0remote' != '$_pn_ip'"
+
 	# The flip, seen from the evidence side. flip.sh issues exactly one
 	# confirming request, so there is exactly one post-flip row afterwards.
 	sh scripts/flip.sh new >/dev/null 2>&1
