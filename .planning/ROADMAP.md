@@ -220,7 +220,17 @@ Plans:
   3. The v1 single-proxy demo still comes up and runs from its preserved form (git tag `v1.0` or a kept compose file), unbroken by the v2 restructure
   4. A rewritten walkthrough runs the full v2 narrative in order — validate `app-new.demo.test` → flip the switch → land on new → host-key gotcha (inherited from v1, surfaced not re-scoped) → roll back → the old proxy was never touched — each beat with its command, expected output, and takeaway
 
-**Plans**: TBD
+**Plans**: 2 plans
+**Mode:** mvp
+
+Plans:
+**Wave 1**
+
+- [ ] 07-01-PLAN.md — Instant rollback + "the old proxy is never touched": section_rollback (VAL-03 both protocols return to OLD with no teardown; VAL-04 shasum -a 256 triple-equality over the two static-proxy configs + StartedAt/worker-PID unchanged) and section_preserve (MIG-03 non-destructive git-plumbing assertions the v1.0 tag is self-contained), wired into the dispatch case + `all` (VAL-03, VAL-04, MIG-03)
+
+**Wave 2** *(blocked on Wave 1 completion; shares scripts/smoke.sh)*
+
+- [ ] 07-02-PLAN.md — The v2 walkthrough: `make proxies-untouched`, then the LOCKSTEP rewrite of WALKTHROUGH.md (11-beat v2 narrative) with section_walkthrough's hard-coded expectations updated in the SAME commit, plus the blocking human cold-read for criterion 4 comprehensibility (MIG-02)
 
 ## Progress
 
@@ -235,7 +245,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | 4. Host-Key Gotcha and the Presenter Walkthrough | 4/4 | Complete | 2026-07-22 |
 | 5. The Switch and Two Static Proxies — HTTP Cutover Re-Homed | 3/3 | Complete    | 2026-07-22 |
 | 6. The SSH Stream Flip and Pre-Flip Validation | 2/2 | Complete    | 2026-07-22 |
-| 7. Instant Rollback, v1 Preservation, and the v2 Walkthrough | 0/TBD | Not started | - |
+| 7. Instant Rollback, v1 Preservation, and the v2 Walkthrough | 0/2 | Not started | - |
 
 ## Requirement Coverage
 
