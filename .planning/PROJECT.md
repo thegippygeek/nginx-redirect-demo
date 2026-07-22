@@ -20,6 +20,8 @@ A live, on-stage flip of the nginx upstream from old to new where the client kee
 
 **Key context:** The map-flip + `nginx -s reload` *mechanism* is unchanged from v1, so the on-stage flip action is identical — what changes is the architecture around it. Tradeoff: one extra proxy hop each way. The v1 single-proxy demo is preserved intact.
 
+**Progress:** Phase 5 complete (2026-07-22) — the switch + two static proxies are live, HTTP:9092 re-homed through `switch → proxy-old → server-old`, the one-line flip re-homed to `switch/active-proxy.conf`, and evidence re-sourced from the switch (real client IP, backend's own `X-Backend` carried untouched — verified live, `make test` 155/0). SW-01's SSH:22 half and pre-flip validation land in Phase 6; rollback + v1 preservation + walkthrough in Phase 7.
+
 ## Requirements
 
 ### Validated
@@ -97,4 +99,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-07-22 — started milestone v2.0 (two-proxy switch topology)*
+*Last updated: 2026-07-22 — Phase 5 complete (switch + two static proxies, HTTP cutover re-homed)*
