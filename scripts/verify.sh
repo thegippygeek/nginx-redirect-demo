@@ -222,7 +222,7 @@ fi
 # one of the two protocols.
 if [ "$HTTP_OBS" != UNREADABLE ] && [ "$SSH_OBS" != UNREADABLE ] && [ "$HTTP_OBS" != "$SSH_OBS" ]; then
 	echo "PROTOCOLS DISAGREE  HTTP reported $HTTP_OBS, SSH reported $SSH_OBS — the flip landed on one protocol only."
-	echo "  One word in proxy/active-backend.conf drives both. If they differ, they are not reading the same word:"
+	echo "  One word in switch/active-proxy.conf drives both. If they differ, they are not reading the same word:"
 	echo "  check that the stream block includes the same file the http block does, and that the reload really landed."
 	exit 3
 fi
