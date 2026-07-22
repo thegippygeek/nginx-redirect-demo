@@ -196,7 +196,16 @@ Plans:
   2. Before any cutover, `curl app-new.demo.test` returns NEW and `ssh app-new.demo.test` shows `server-new`'s banner, while `app.demo.test` still lands on OLD — the new stack is provably live over both protocols before the presenter commits to the flip
   3. The verify script asserts over both HTTP and SSH which backend answered *through the switch*, exits non-zero on mismatch, and can be pointed at `app-new.demo.test` to validate the new stack pre-flip
 
-**Plans**: TBD
+**Plans**: 2 plans
+
+Plans:
+**Wave 1**
+
+- [ ] 06-01-PLAN.md — Re-home v1's SSH:22 stream block onto the switch (3 string edits) and reconcile + re-enable section_ssh / section_hostkey; one selector edit flips both protocols (SW-03, finalizes SW-01)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 06-02-PLAN.md — Pre-flip validation over both protocols: verify.sh `--target app-new` mode + `make verify-new-stack` and a non-destructive section_validate proving `curl`/`ssh app-new.demo.test` → NEW while `app.demo.test` → OLD (VAL-01, VAL-02, EV2-04)
 
 ### Phase 7: Instant Rollback, v1 Preservation, and the v2 Walkthrough
 
@@ -225,7 +234,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | 3. SSH Through the Stream Proxy | 3/3 | Complete | 2026-07-21 |
 | 4. Host-Key Gotcha and the Presenter Walkthrough | 4/4 | Complete | 2026-07-22 |
 | 5. The Switch and Two Static Proxies — HTTP Cutover Re-Homed | 3/3 | Complete    | 2026-07-22 |
-| 6. The SSH Stream Flip and Pre-Flip Validation | 0/TBD | Not started | - |
+| 6. The SSH Stream Flip and Pre-Flip Validation | 0/2 | Not started | - |
 | 7. Instant Rollback, v1 Preservation, and the v2 Walkthrough | 0/TBD | Not started | - |
 
 ## Requirement Coverage
