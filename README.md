@@ -25,6 +25,51 @@ other.
 
 ---
 
+## Architecture
+
+A **blue-green proxy tier**: a front `switch` (the client's only endpoint,
+`app.demo.test`) flips one shared map between two *static* proxies. One word, one
+reload, and **both** HTTP on :9092 and SSH on :22 cut over together — the client
+never changes what it connects to.
+
+```mermaid
+flowchart LR
+    client["client"]:::cli
+    flip["flip surface<br/>switch/active-proxy.conf<br/>map default old to new"]:::flip
+    switch["switch<br/>app.demo.test<br/>HTTP :9092 · SSH :22"]:::sw
+
+    subgraph static["static proxies — never reconfigured"]
+        proxyold["proxy-old<br/>app-old.demo.test"]:::old
+        proxynew["proxy-new<br/>app-new.demo.test"]:::new
+    end
+
+    serverold["server-old<br/>OLD"]:::old
+    servernew["server-new<br/>NEW"]:::new
+    status["status page :9094<br/>reads switch log (:ro)"]:::ev
+
+    client -->|"app.demo.test"| switch
+    flip -.->|"one edit + reload"| switch
+    switch ==>|"old (active)"| proxyold
+    switch -.->|"new"| proxynew
+    proxyold --> serverold
+    proxynew --> servernew
+    switch -.->|"evidence log"| status
+    client -.->|"pre-flip: validate NEW before the flip"| proxynew
+
+    classDef cli fill:#a5d8ff,stroke:#2563eb,color:#1e1e1e
+    classDef sw fill:#d0bfff,stroke:#8b5cf6,stroke-width:3px,color:#1e1e1e
+    classDef old fill:#ffd8a8,stroke:#f59e0b,color:#1e1e1e
+    classDef new fill:#b2f2bb,stroke:#22c55e,color:#1e1e1e
+    classDef ev fill:#c3fae8,stroke:#0891b2,color:#1e1e1e
+    classDef flip fill:#fff3bf,stroke:#f59e0b,color:#1e1e1e
+```
+
+Solid line = the active path (selector on `old`); dashed = the standby path and
+the observability/validation edges. **Full architecture reference:
+[`docs/architecture.md`](docs/architecture.md).**
+
+---
+
 ## One-time setup — a prerequisite, not a startup step
 
 Your host machine needs `app.demo.test` to resolve to `127.0.0.1`:

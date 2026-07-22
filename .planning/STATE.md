@@ -139,6 +139,7 @@ None yet.
 | Task | Slug | Completed | Notes |
 |------|------|-----------|-------|
 | docs/architecture.md | architecture-doc | 2026-07-23 | v2.0 two-proxy switch topology architecture doc + Mermaid diagram |
+| README.md architecture diagram | readme-diagram | 2026-07-23 | Added Architecture section + Mermaid diagram to README |
 
 ## Session Continuity
 
