@@ -85,8 +85,8 @@ Current milestone. A front `switch` nginx flips traffic between two static proxi
 
 - [x] **VAL-01**: Presenter can reach `app-new.demo.test` over HTTP and land on `server-new` *before* any cutover, while live traffic on `app.demo.test` still lands on `server-old`
 - [x] **VAL-02**: Presenter can `ssh app-new.demo.test` and see `server-new`'s banner before cutover, proving the new stack's SSH path is live
-- [ ] **VAL-03**: After cutover, the presenter can roll back to old by flipping the switch selector back and reloading — no teardown
-- [ ] **VAL-04**: The two static proxies' configs are provably unchanged across the whole cutover — "the old proxy is never touched" is literally true
+- [x] **VAL-03**: After cutover, the presenter can roll back to old by flipping the switch selector back and reloading — no teardown
+- [x] **VAL-04**: The two static proxies' configs are provably unchanged across the whole cutover — "the old proxy is never touched" is literally true
 
 ### Evidence (switch-sourced)
 
@@ -99,7 +99,7 @@ Current milestone. A front `switch` nginx flips traffic between two static proxi
 
 - [x] **MIG-01**: The whole v2 topology (switch + two proxies + two backends + status) comes up with one `docker compose up`, preserving ENV-01 across the added services
 - [ ] **MIG-02**: The presenter walkthrough narrates the v2 story: validate the new stack via `app-new.demo.test` → flip the switch → land on new → (host-key gotcha, inherited from v1) → roll back → the old proxy was never touched
-- [ ] **MIG-03**: The v1 single-proxy demo remains available and unbroken (e.g. via git tag or a preserved compose file), not deleted by v2 work
+- [x] **MIG-03**: The v1 single-proxy demo remains available and unbroken (e.g. via git tag or a preserved compose file), not deleted by v2 work
 
 ## Future / Deferred Requirements
 
@@ -178,15 +178,15 @@ Which phases cover which requirements. Updated during roadmap creation.
 | PROX-03 | Phase 5 | Complete |
 | VAL-01 | Phase 6 | Complete |
 | VAL-02 | Phase 6 | Complete |
-| VAL-03 | Phase 7 | Pending |
-| VAL-04 | Phase 7 | Pending |
+| VAL-03 | Phase 7 | Complete |
+| VAL-04 | Phase 7 | Complete |
 | EV2-01 | Phase 5 | Complete |
 | EV2-02 | Phase 5 | Complete |
 | EV2-03 | Phase 5 | Complete |
 | EV2-04 | Phase 6 | Complete |
 | MIG-01 | Phase 5 | Complete |
 | MIG-02 | Phase 7 | Pending |
-| MIG-03 | Phase 7 | Pending |
+| MIG-03 | Phase 7 | Complete |
 
 **Coverage:**
 
