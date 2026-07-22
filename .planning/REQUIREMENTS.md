@@ -83,8 +83,8 @@ Current milestone. A front `switch` nginx flips traffic between two static proxi
 
 ### Pre-flip Validation & Rollback
 
-- [ ] **VAL-01**: Presenter can reach `app-new.demo.test` over HTTP and land on `server-new` *before* any cutover, while live traffic on `app.demo.test` still lands on `server-old`
-- [ ] **VAL-02**: Presenter can `ssh app-new.demo.test` and see `server-new`'s banner before cutover, proving the new stack's SSH path is live
+- [x] **VAL-01**: Presenter can reach `app-new.demo.test` over HTTP and land on `server-new` *before* any cutover, while live traffic on `app.demo.test` still lands on `server-old`
+- [x] **VAL-02**: Presenter can `ssh app-new.demo.test` and see `server-new`'s banner before cutover, proving the new stack's SSH path is live
 - [ ] **VAL-03**: After cutover, the presenter can roll back to old by flipping the switch selector back and reloading — no teardown
 - [ ] **VAL-04**: The two static proxies' configs are provably unchanged across the whole cutover — "the old proxy is never touched" is literally true
 
@@ -93,7 +93,7 @@ Current milestone. A front `switch` nginx flips traffic between two static proxi
 - [x] **EV2-01**: The access/evidence log the status page reads is the **switch's** log, capturing the client's real `remote_addr` (not a downstream proxy's address)
 - [x] **EV2-02**: The answering backend's own `X-Backend` identity header propagates back through the proxy chain to the switch log, so `backend=OLD/NEW` reflects the true backend and is asserted by no proxy tier
 - [x] **EV2-03**: The status page shows the current switch selector (which proxy is active) and recent requests with the backend that answered — the v1 EVID-02/03 guarantees, re-sourced from the switch
-- [ ] **EV2-04**: The verify script asserts over both HTTP and SSH which backend answered through the switch, and can target `app-new.demo.test` directly for pre-flip validation
+- [x] **EV2-04**: The verify script asserts over both HTTP and SSH which backend answered through the switch, and can target `app-new.demo.test` directly for pre-flip validation
 
 ### Migration Story & Continuity
 
@@ -176,14 +176,14 @@ Which phases cover which requirements. Updated during roadmap creation.
 | PROX-01 | Phase 5 | Complete |
 | PROX-02 | Phase 5 | Complete |
 | PROX-03 | Phase 5 | Complete |
-| VAL-01 | Phase 6 | Pending |
-| VAL-02 | Phase 6 | Pending |
+| VAL-01 | Phase 6 | Complete |
+| VAL-02 | Phase 6 | Complete |
 | VAL-03 | Phase 7 | Pending |
 | VAL-04 | Phase 7 | Pending |
 | EV2-01 | Phase 5 | Complete |
 | EV2-02 | Phase 5 | Complete |
 | EV2-03 | Phase 5 | Complete |
-| EV2-04 | Phase 6 | Pending |
+| EV2-04 | Phase 6 | Complete |
 | MIG-01 | Phase 5 | Complete |
 | MIG-02 | Phase 7 | Pending |
 | MIG-03 | Phase 7 | Pending |
