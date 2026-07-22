@@ -134,6 +134,12 @@ None yet.
 |----------|------|--------|-------------|
 | *(none)* | | | |
 
+## Quick Tasks Completed
+
+| Task | Slug | Completed | Notes |
+|------|------|-----------|-------|
+| docs/architecture.md | architecture-doc | 2026-07-23 | v2.0 two-proxy switch topology architecture doc + Mermaid diagram |
+
 ## Session Continuity
 
 Last session: 2026-07-21T23:36:05.914Z
