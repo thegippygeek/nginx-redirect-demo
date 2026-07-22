@@ -77,9 +77,9 @@ Current milestone. A front `switch` nginx flips traffic between two static proxi
 
 ### Static Proxies
 
-- [ ] **PROX-01**: A `proxy-old` service statically forwards HTTP and SSH to `server-old` and is never reconfigured during the demo
-- [ ] **PROX-02**: A `proxy-new` service statically forwards HTTP and SSH to `server-new` and is never reconfigured during the demo
-- [ ] **PROX-03**: Each static proxy carries a distinct network alias — `app-old.demo.test` and `app-new.demo.test` — reachable directly on the demo network
+- [x] **PROX-01**: A `proxy-old` service statically forwards HTTP and SSH to `server-old` and is never reconfigured during the demo
+- [x] **PROX-02**: A `proxy-new` service statically forwards HTTP and SSH to `server-new` and is never reconfigured during the demo
+- [x] **PROX-03**: Each static proxy carries a distinct network alias — `app-old.demo.test` and `app-new.demo.test` — reachable directly on the demo network
 
 ### Pre-flip Validation & Rollback
 
@@ -90,14 +90,14 @@ Current milestone. A front `switch` nginx flips traffic between two static proxi
 
 ### Evidence (switch-sourced)
 
-- [ ] **EV2-01**: The access/evidence log the status page reads is the **switch's** log, capturing the client's real `remote_addr` (not a downstream proxy's address)
-- [ ] **EV2-02**: The answering backend's own `X-Backend` identity header propagates back through the proxy chain to the switch log, so `backend=OLD/NEW` reflects the true backend and is asserted by no proxy tier
-- [ ] **EV2-03**: The status page shows the current switch selector (which proxy is active) and recent requests with the backend that answered — the v1 EVID-02/03 guarantees, re-sourced from the switch
+- [x] **EV2-01**: The access/evidence log the status page reads is the **switch's** log, capturing the client's real `remote_addr` (not a downstream proxy's address)
+- [x] **EV2-02**: The answering backend's own `X-Backend` identity header propagates back through the proxy chain to the switch log, so `backend=OLD/NEW` reflects the true backend and is asserted by no proxy tier
+- [x] **EV2-03**: The status page shows the current switch selector (which proxy is active) and recent requests with the backend that answered — the v1 EVID-02/03 guarantees, re-sourced from the switch
 - [ ] **EV2-04**: The verify script asserts over both HTTP and SSH which backend answered through the switch, and can target `app-new.demo.test` directly for pre-flip validation
 
 ### Migration Story & Continuity
 
-- [ ] **MIG-01**: The whole v2 topology (switch + two proxies + two backends + status) comes up with one `docker compose up`, preserving ENV-01 across the added services
+- [x] **MIG-01**: The whole v2 topology (switch + two proxies + two backends + status) comes up with one `docker compose up`, preserving ENV-01 across the added services
 - [ ] **MIG-02**: The presenter walkthrough narrates the v2 story: validate the new stack via `app-new.demo.test` → flip the switch → land on new → (host-key gotcha, inherited from v1) → roll back → the old proxy was never touched
 - [ ] **MIG-03**: The v1 single-proxy demo remains available and unbroken (e.g. via git tag or a preserved compose file), not deleted by v2 work
 
@@ -173,18 +173,18 @@ Which phases cover which requirements. Updated during roadmap creation.
 | SW-02 | Phase 5 | Pending |
 | SW-03 | Phase 6 | Pending |
 | SW-04 | Phase 5 | Pending |
-| PROX-01 | Phase 5 | Pending |
-| PROX-02 | Phase 5 | Pending |
-| PROX-03 | Phase 5 | Pending |
+| PROX-01 | Phase 5 | Complete |
+| PROX-02 | Phase 5 | Complete |
+| PROX-03 | Phase 5 | Complete |
 | VAL-01 | Phase 6 | Pending |
 | VAL-02 | Phase 6 | Pending |
 | VAL-03 | Phase 7 | Pending |
 | VAL-04 | Phase 7 | Pending |
-| EV2-01 | Phase 5 | Pending |
-| EV2-02 | Phase 5 | Pending |
-| EV2-03 | Phase 5 | Pending |
+| EV2-01 | Phase 5 | Complete |
+| EV2-02 | Phase 5 | Complete |
+| EV2-03 | Phase 5 | Complete |
 | EV2-04 | Phase 6 | Pending |
-| MIG-01 | Phase 5 | Pending |
+| MIG-01 | Phase 5 | Complete |
 | MIG-02 | Phase 7 | Pending |
 | MIG-03 | Phase 7 | Pending |
 
