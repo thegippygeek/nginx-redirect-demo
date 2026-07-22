@@ -1077,7 +1077,7 @@ section_cutover() {
 # section calls it and exports the result — the same reason SSH_OPTS is a
 # variable rather than a helper.
 selector_now() {
-	sed -n 's/^[[:space:]]*default[[:space:]][[:space:]]*\([A-Za-z0-9_.-][A-Za-z0-9_.-]*\)[[:space:]]*;.*/\1/p' proxy/active-backend.conf | head -1
+	sed -n 's/^[[:space:]]*default[[:space:]][[:space:]]*\([A-Za-z0-9_.-][A-Za-z0-9_.-]*\)[[:space:]]*;.*/\1/p' switch/active-proxy.conf | head -1
 }
 
 # ACTIVE_SEL is the raw word in the shared file; ACTIVE_LABEL is the uppercase
@@ -1111,16 +1111,16 @@ hostkey_fp() {
 # suite must leave the rig selecting `old`, including an interrupted one.
 restore_ssh_state() {
 	_sshbak=$(mktemp)
-	cp proxy/active-backend.conf "$_sshbak"
-	trap 'cp "$_sshbak" proxy/active-backend.conf; docker compose exec -T proxy nginx -s reload >/dev/null 2>&1; rm -f "$_sshbak"; exit 1' INT TERM
-	trap 'cp "$_sshbak" proxy/active-backend.conf; docker compose exec -T proxy nginx -s reload >/dev/null 2>&1; rm -f "$_sshbak"' EXIT
+	cp switch/active-proxy.conf "$_sshbak"
+	trap 'cp "$_sshbak" switch/active-proxy.conf; docker compose exec -T switch nginx -s reload >/dev/null 2>&1; rm -f "$_sshbak"; exit 1' INT TERM
+	trap 'cp "$_sshbak" switch/active-proxy.conf; docker compose exec -T switch nginx -s reload >/dev/null 2>&1; rm -f "$_sshbak"' EXIT
 }
 
 # Clears what restore_ssh_state installed, once the section has put the rig back
 # on `old` under its own power. Mirrors finish_flip_state().
 finish_ssh_state() {
-	cp "$_sshbak" proxy/active-backend.conf
-	docker compose exec -T proxy nginx -s reload >/dev/null 2>&1
+	cp "$_sshbak" switch/active-proxy.conf
+	docker compose exec -T switch nginx -s reload >/dev/null 2>&1
 	trap - EXIT INT TERM
 	rm -f "$_sshbak"
 }
@@ -1304,11 +1304,12 @@ section_ssh() {
 	assert "T-03-05 server-new /keys/authorized_keys is mode 644 owned by root" \
 		'test "$(docker compose exec -T server-new stat -c "%a %U" /keys/authorized_keys | tr -d "\r")" = "644 root"'
 
-	# ================= the proxied hop (Plan 03-02) =========================
+	# ================= the proxied hop (Plan 03-02, re-homed to the switch) ==
 	#
-	# Everything below goes through app.demo.test:22 — the proxy — rather than
-	# naming a backend. Plan 01 made SSH into a named backend work; this group is
-	# the presenter no longer naming the backend.
+	# Everything below goes through app.demo.test:22 — the SWITCH (which relays
+	# opaquely onward through the selected static proxy to its backend) — rather
+	# than naming a backend. Plan 01 made SSH into a named backend work; this
+	# group is the presenter no longer naming the backend, now over the switch.
 	#
 	# The group flips the rig, so it installs the restore trap first.
 	restore_ssh_state
@@ -1327,14 +1328,14 @@ section_ssh() {
 	# to ::1 first and does not retry the next family. compose.yaml already
 	# documents this same root cause for the status service's busybox wget
 	# healthcheck; this is its second occurrence in the rig.
-	assert "SSH-01 the proxy itself listens on :22 (IPv4 loopback literal)" \
-		'docker compose exec -T proxy nc -z 127.0.0.1 22'
+	assert "SSH-01 the switch itself listens on :22 (IPv4 loopback literal)" \
+		'docker compose exec -T switch nc -z 127.0.0.1 22'
 
 	# ---- SSH-01: end to end, with NO port flag ----
 	#
 	# `demo@app.demo.test` and nothing else. The absence of a port flag IS the
 	# D-37 claim being exercised rather than merely stated: inside the demo
-	# network the proxy genuinely listens on 22, so "ssh on port 22" is literally
+	# network the switch genuinely listens on 22, so "ssh on port 22" is literally
 	# true and the presenter's command needs no `-p`.
 	assert "SSH-01 client -> app.demo.test lands on the selected backend, no port flag" \
 		'out=$(docker compose exec -T client timeout 10 ssh $SSH_OPTS demo@app.demo.test hostname 2>&1)
@@ -1348,14 +1349,14 @@ section_ssh() {
 	# zero lines and every negative check over it would pass VACUOUSLY, so the
 	# range is asserted non-empty first — the same discipline the guards at the
 	# foot of this section use.
-	assert "SSH-02 proxy/nginx.conf carries a top-level stream block" \
-		'grep -qE "^stream[[:space:]]*\{" proxy/nginx.conf'
+	assert "SSH-02 switch/nginx.conf carries a top-level stream block" \
+		'grep -qE "^stream[[:space:]]*\{" switch/nginx.conf'
 	assert "SSH-02 the stream region binds to a non-empty range" \
-		'test "$(awk "/^stream[[:space:]]*\{/,/^\}/" proxy/nginx.conf | grep -c .)" -gt 5'
+		'test "$(awk "/^stream[[:space:]]*\{/,/^\}/" switch/nginx.conf | grep -c .)" -gt 5'
 	assert "SSH-02 the stream region proxy_passes the shared selector variable" \
-		'awk "/^stream[[:space:]]*\{/,/^\}/" proxy/nginx.conf | grep -v "^[[:space:]]*#" | grep -qE "proxy_pass[[:space:]]+.active_backend;"'
+		'awk "/^stream[[:space:]]*\{/,/^\}/" switch/nginx.conf | grep -v "^[[:space:]]*#" | grep -qE "proxy_pass[[:space:]]+.active_backend;"'
 	assert "SSH-02 the stream region listens on 22" \
-		'awk "/^stream[[:space:]]*\{/,/^\}/" proxy/nginx.conf | grep -v "^[[:space:]]*#" | grep -qE "listen[[:space:]]+22;"'
+		'awk "/^stream[[:space:]]*\{/,/^\}/" switch/nginx.conf | grep -v "^[[:space:]]*#" | grep -qE "listen[[:space:]]+22;"'
 
 	# ---- SSH-02 / D-39: one file, one word, both protocols ----
 	#
@@ -1367,9 +1368,9 @@ section_ssh() {
 	# grown: still five lines, both presenter comments intact. If either half
 	# drifts, the claim stops being true.
 	assert "SSH-02/D-39 the shared include path appears exactly twice, once per context" \
-		'test "$(grep -v "^[[:space:]]*#" proxy/nginx.conf | grep -c "demo/active-backend.conf")" = "2"'
+		'test "$(grep -v "^[[:space:]]*#" switch/nginx.conf | grep -c "demo/active-proxy.conf")" = "2"'
 	assert "D-39 the shared file is still 5 lines with both presenter comments" \
-		'test "$(wc -l < proxy/active-backend.conf)" -eq 5 && test "$(grep -c "^#" proxy/active-backend.conf)" -eq 2'
+		'test "$(wc -l < switch/active-proxy.conf)" -eq 5 && test "$(grep -c "^#" switch/active-proxy.conf)" -eq 2'
 
 	# ---- SSH-03: the banner survives the TCP hop ----
 	#
@@ -1398,11 +1399,11 @@ section_ssh() {
 	# Region-scoped deliberately — the http block legitimately writes to that
 	# path, so a file-wide check would be unsatisfiable.
 	assert "D-46 the stream region declares exactly one access_log" \
-		'test "$(awk "/^stream[[:space:]]*\{/,/^\}/" proxy/nginx.conf | grep -v "^[[:space:]]*#" | grep -c "access_log")" = "1"'
+		'test "$(awk "/^stream[[:space:]]*\{/,/^\}/" switch/nginx.conf | grep -v "^[[:space:]]*#" | grep -c "access_log")" = "1"'
 	assert "D-46 that access_log targets the process stdout" \
-		'awk "/^stream[[:space:]]*\{/,/^\}/" proxy/nginx.conf | grep -v "^[[:space:]]*#" | grep -qE "access_log[[:space:]]+/dev/stdout"'
+		'awk "/^stream[[:space:]]*\{/,/^\}/" switch/nginx.conf | grep -v "^[[:space:]]*#" | grep -qE "access_log[[:space:]]+/dev/stdout"'
 	assert "D-46 the stream region names no log directory path" \
-		'test "$(awk "/^stream[[:space:]]*\{/,/^\}/" proxy/nginx.conf | grep -v "^[[:space:]]*#" | grep -c "var/log")" = "0"'
+		'test "$(awk "/^stream[[:space:]]*\{/,/^\}/" switch/nginx.conf | grep -v "^[[:space:]]*#" | grep -c "var/log")" = "0"'
 
 	# ---- EVID-01 for SSH: the stream line reaches docker compose logs ----
 	#
@@ -1414,13 +1415,13 @@ section_ssh() {
 	assert "EVID-01 the stream log carries the uppercase label AND the raw selector" \
 		'docker compose exec -T client timeout 10 ssh $SSH_OPTS demo@app.demo.test true >/dev/null 2>&1
 		 sleep 1
-		 docker compose logs proxy | grep -qE "backend=$ACTIVE_LABEL selector=$ACTIVE_SEL"'
+		 docker compose logs switch | grep -qE "backend=$ACTIVE_LABEL selector=$ACTIVE_SEL"'
 
 	# The coupling to the projector colouring, pinned from BOTH ends so a future
 	# rename of the field cannot silently uncolour SSH lines: the Makefile still
 	# matches this token, and a real stream line still carries it.
 	assert "EVID-01 the stream label token is the one logs-demo's awk colours" \
-		'test "$(grep -c "backend=OLD" Makefile)" -ge 1 && docker compose logs proxy | grep -qE "ssh backend=OLD"'
+		'test "$(grep -c "backend=OLD" Makefile)" -ge 1 && docker compose logs switch | grep -qE "ssh backend=OLD"'
 
 	# ---- CUT-04: the IDENTICAL command string, held in ONE variable ----
 	#
@@ -1503,7 +1504,7 @@ section_ssh() {
 	settle_flip old
 	set_active
 	assert "the ssh section leaves the rig selecting old" \
-		'test "$ACTIVE_SEL" = "old" && test "$(docker compose exec -T proxy curl -sS --max-time 2 http://localhost:8081/active-backend | tr -d "\r\n")" = "old"'
+		'test "$ACTIVE_SEL" = "old" && test "$(docker compose exec -T switch curl -sS --max-time 2 http://localhost:8081/active-proxy | tr -d "\r\n")" = "old"'
 
 	# ============ EVID-04 / EVID-05: scripts/verify.sh (Plan 03-03) =========
 	#
@@ -1630,7 +1631,7 @@ section_ssh() {
 	assert "EVID-05 end to end: verify.sh old exits 0 again once the rig is back on OLD" \
 		'sh scripts/verify.sh old'
 	assert "EVID-05 the EVID group leaves the rig selecting old" \
-		'test "$ACTIVE_SEL" = "old" && test "$(docker compose exec -T proxy curl -sS --max-time 2 http://localhost:8081/active-backend | tr -d "\r\n")" = "old"'
+		'test "$ACTIVE_SEL" = "old" && test "$(docker compose exec -T switch curl -sS --max-time 2 http://localhost:8081/active-proxy | tr -d "\r\n")" = "old"'
 
 	finish_ssh_state
 
@@ -2196,7 +2197,7 @@ section_hostkey() {
 	settle_flip old
 	set_active
 	assert "KEY-01 the hostkey section leaves the rig selecting old" \
-		'test "$ACTIVE_SEL" = "old" && test "$(docker compose exec -T proxy curl -sS --max-time 2 http://localhost:8081/active-backend | tr -d "\r\n")" = "old"'
+		'test "$ACTIVE_SEL" = "old" && test "$(docker compose exec -T switch curl -sS --max-time 2 http://localhost:8081/active-proxy | tr -d "\r\n")" = "old"'
 
 	# The rig is back on `old` under this section's own power and the gotcha is
 	# re-armed, so the traps have nothing left to do. Cleared here rather than
@@ -2252,13 +2253,7 @@ all)
 	section_cutover
 	# AFTER cutover, deliberately: that section leaves the rig selecting OLD,
 	# which is the state this one expects to find.
-	#
-	# Phase 6 (SW-03): re-enable when the switch carries the SSH:22 stream. This
-	# phase ships NO stream block on the switch, so ssh app.demo.test (which
-	# resolves to the switch) has no :22 listener and every proxied-SSH assertion
-	# here tests Phase 6 behaviour. The section FUNCTION is preserved intact below
-	# and still runs via `sh scripts/smoke.sh ssh`.
-	# section_ssh
+	section_ssh
 	# Before the destructive section, deliberately: this one is a pure reader —
 	# it touches no rig state and executes nothing it extracts — so it costs
 	# nothing to run early and its failures arrive before the rig is disturbed.
@@ -2268,12 +2263,7 @@ all)
 	# writes the client's trust record — and it restores the rig on the way out
 	# to the state the next thing expects. Same reasoning as ssh-after-cutover,
 	# one step further along.
-	#
-	# Phase 6 (SW-03): re-enable when the switch carries the SSH:22 stream. Gated
-	# out for the same reason as section_ssh — it drives host-key trust through
-	# app.demo.test:22 (the switch), which has no listener this phase. Preserved
-	# intact below and still runs via `sh scripts/smoke.sh hostkey`.
-	# section_hostkey
+	section_hostkey
 	;;
 *)
 	echo "usage: sh scripts/smoke.sh [backends|proxy|redirect|cutover|ssh|walkthrough|hostkey|all]" >&2
