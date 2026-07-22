@@ -26,7 +26,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 5: The Switch and Two Static Proxies — HTTP Cutover Re-Homed** - A front `switch` flips HTTP between two static proxies; the client still hits `app.demo.test:9092` unchanged and the status page is re-sourced from the switch (completed 2026-07-22)
 - [x] **Phase 6: The SSH Stream Flip and Pre-Flip Validation** - The switch's one-line selector governs SSH:22 too, and the presenter can `curl`/`ssh app-new.demo.test` to prove the new stack live before flipping — with the verify script re-pointed (completed 2026-07-22)
-- [ ] **Phase 7: Instant Rollback, v1 Preservation, and the v2 Walkthrough** - Flip the switch back for an instant teardown-free rollback, prove the static proxies were never touched, keep v1 runnable, and rewrite the walkthrough for the v2 story
+- [x] **Phase 7: Instant Rollback, v1 Preservation, and the v2 Walkthrough** - Flip the switch back for an instant teardown-free rollback, prove the static proxies were never touched, keep v1 runnable, and rewrite the walkthrough for the v2 story (completed 2026-07-22)
 
 ## Phase Details
 
@@ -226,11 +226,11 @@ Plans:
 Plans:
 **Wave 1**
 
-- [ ] 07-01-PLAN.md — Instant rollback + "the old proxy is never touched": section_rollback (VAL-03 both protocols return to OLD with no teardown; VAL-04 shasum -a 256 triple-equality over the two static-proxy configs + StartedAt/worker-PID unchanged) and section_preserve (MIG-03 non-destructive git-plumbing assertions the v1.0 tag is self-contained), wired into the dispatch case + `all` (VAL-03, VAL-04, MIG-03)
+- [x] 07-01-PLAN.md — Instant rollback + "the old proxy is never touched": section_rollback (VAL-03 both protocols return to OLD with no teardown; VAL-04 shasum -a 256 triple-equality over the two static-proxy configs + StartedAt/worker-PID unchanged) and section_preserve (MIG-03 non-destructive git-plumbing assertions the v1.0 tag is self-contained), wired into the dispatch case + `all` (VAL-03, VAL-04, MIG-03)
 
 **Wave 2** *(blocked on Wave 1 completion; shares scripts/smoke.sh)*
 
-- [ ] 07-02-PLAN.md — The v2 walkthrough: `make proxies-untouched`, then the LOCKSTEP rewrite of WALKTHROUGH.md (11-beat v2 narrative) with section_walkthrough's hard-coded expectations updated in the SAME commit, plus the blocking human cold-read for criterion 4 comprehensibility (MIG-02)
+- [x] 07-02-PLAN.md — The v2 walkthrough: `make proxies-untouched`, then the LOCKSTEP rewrite of WALKTHROUGH.md (11-beat v2 narrative) with section_walkthrough's hard-coded expectations updated in the SAME commit, plus the blocking human cold-read for criterion 4 comprehensibility (MIG-02)
 
 ## Progress
 
@@ -245,7 +245,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | 4. Host-Key Gotcha and the Presenter Walkthrough | 4/4 | Complete | 2026-07-22 |
 | 5. The Switch and Two Static Proxies — HTTP Cutover Re-Homed | 3/3 | Complete    | 2026-07-22 |
 | 6. The SSH Stream Flip and Pre-Flip Validation | 2/2 | Complete    | 2026-07-22 |
-| 7. Instant Rollback, v1 Preservation, and the v2 Walkthrough | 0/2 | Not started | - |
+| 7. Instant Rollback, v1 Preservation, and the v2 Walkthrough | 2/2 | Complete    | 2026-07-22 |
 
 ## Requirement Coverage
 

@@ -20,7 +20,7 @@ A live, on-stage flip of the nginx upstream from old to new where the client kee
 
 **Key context:** The map-flip + `nginx -s reload` *mechanism* is unchanged from v1, so the on-stage flip action is identical — what changes is the architecture around it. Tradeoff: one extra proxy hop each way. The v1 single-proxy demo is preserved intact.
 
-**Progress:** Phases 5–6 complete (2026-07-22). Phase 5: the switch + two static proxies live, HTTP:9092 re-homed and evidence re-sourced from the switch (real client IP, backend's own `X-Backend` untouched). Phase 6: the switch's SSH:22 stream block added so **one `switch/active-proxy.conf` edit flips both protocols** (D-39 shared include), plus the milestone payoff — pre-flip validation (`curl`/`ssh app-new.demo.test` → NEW while `app.demo.test` stays OLD) and `verify.sh --target app-new`. SW-01 now fully complete (both protocols). Verified live, `make test` 247/0. Remaining: Phase 7 — instant rollback, v1 preservation (tag), and the v2 walkthrough rewrite.
+**Status: v2.0 COMPLETE (2026-07-22)** — all 3 phases shipped, all 18 v2.0 requirements verified (`make test` 257/0 + a human walkthrough cold-read). Phase 5: the switch + two static proxies, HTTP:9092 re-homed, evidence re-sourced from the switch. Phase 6: the switch's SSH:22 stream block so **one `switch/active-proxy.conf` edit flips both protocols** (D-39 shared include), plus pre-flip validation (`curl`/`ssh app-new.demo.test` → NEW while `app.demo.test` stays OLD). Phase 7: instant rollback (flip back, no teardown), "the old proxy is never touched" as a `shasum -a 256` proof, v1 preserved at tag `v1.0`, and the presenter walkthrough rewritten to the 11-beat v2 narrative. The blue-green proxy tier is done: a live front-door flip between two static proxies with pre-flip validation and instant rollback.
 
 ## Requirements
 
@@ -99,4 +99,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-07-22 — Phase 6 complete (SSH stream flip + pre-flip validation; one edit flips both protocols)*
+*Last updated: 2026-07-22 — milestone v2.0 COMPLETE (two-proxy switch topology: Phases 5–7 shipped and verified)*
