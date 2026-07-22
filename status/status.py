@@ -43,9 +43,14 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 # and no secret. Neither file path is ever derived from a request (T-02-12).
 
 LOG_PATH = os.environ.get("DEMO_LOG_PATH", "/var/log/demo/access.log")
-CONF_PATH = os.environ.get("DEMO_CONF_PATH", "/etc/nginx/demo/active-backend.conf")
+# Phase 5: the selector and the liveness probe both follow the topology to the
+# front SWITCH. active-proxy.conf is the switch's flip file (the map var spelling
+# $active_backend is preserved, so read_config is unchanged); the probe targets
+# the switch's unpublished :8081 listener. Compose also sets these via
+# environment: — the defaults are updated too so the module is honest standalone.
+CONF_PATH = os.environ.get("DEMO_CONF_PATH", "/etc/nginx/demo/active-proxy.conf")
 INDEX_PATH = os.environ.get("DEMO_INDEX_PATH", "/app/index.html")
-PROXY_PROBE = os.environ.get("DEMO_PROXY_PROBE", "http://proxy:8081/nginx-health")
+PROXY_PROBE = os.environ.get("DEMO_PROXY_PROBE", "http://switch:8081/nginx-health")
 PROBE_TIMEOUT = float(os.environ.get("DEMO_PROBE_TIMEOUT", "1.5"))
 PORT = int(os.environ.get("DEMO_PORT", "9094"))
 # Inside the container the listener must accept from the bridge network, or the
@@ -231,6 +236,12 @@ def _render_row(row):
         "backend": str(row.get("backend", "")).upper(),
         "ms": _msec(row),
         "bhost": str(row.get("bhost", "")),
+        # EV2-01: the client's REAL address, straight from the switch log. The
+        # switch is the front tier, so $remote_addr there is the client — never
+        # a static-proxy IP. `upstream` is deliberately NOT rendered: it now
+        # names the static proxy the switch talked to (expected, Pitfall 4), and
+        # surfacing it would invite the audience to read a proxy hop as identity.
+        "remote": str(row.get("remote", "")),
     }
 
 
