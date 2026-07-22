@@ -25,9 +25,9 @@
 # difference, which is the expected case here, and every genuine failure path
 # below restores state before exiting.
 
-CONF=proxy/active-backend.conf
+CONF=switch/active-proxy.conf
 EVIDENCE=/var/log/demo/access.log
-ORACLE=http://localhost:8081/active-backend
+ORACLE=http://localhost:8081/active-proxy
 
 usage() {
 	echo "usage: sh scripts/flip.sh <old|new|toggle>" >&2
@@ -67,26 +67,29 @@ echo "FLIP: $CURRENT -> $TARGET"
 
 # ---------------------------------------------------------------- 1. the gate
 #
-# D-35. Probe BOTH backends, not just the target: nginx resolves
-# `upstream ... server <name>` at config-PARSE time and parses both upstream
-# blocks on every reload, so either backend being down aborts the parse — and a
-# reload whose config fails to load leaves the master running the PREVIOUS
-# configuration. Flipping BACK to old is equally blocked when new is down.
+# D-35, one tier up. Probe BOTH of the switch's upstreams, not just the target:
+# the switch resolves `upstream ... server proxy-old|proxy-new` at config-PARSE
+# time and parses both upstream blocks on every reload, so either static proxy
+# being down aborts the parse — and a reload whose config fails to load leaves
+# the switch running the PREVIOUS configuration. Flipping BACK to old is equally
+# blocked when proxy-new is down.
 #
-# Probing through the proxy container exercises the exact path nginx will use
-# (Docker DNS + reachability + the app answering) and is immune to
-# `docker compose ps` output-format drift.
+# Probing each proxy's :8081/nginx-health from inside the switch container
+# exercises the exact path the switch's reload depends on (Docker DNS +
+# reachability + the proxy answering) and is immune to `docker compose ps`
+# output-format drift. The backends sit one hop further and are gated by the
+# static proxies' own healthchecks (RESEARCH Pitfall 2).
 #
 # Nothing below this point has touched the config file yet. That is deliberate:
 # a refusal must leave the repo byte-identical, or the file would claim an
 # intent that never took effect.
-for _b in server-old server-new; do
-	if ! docker compose exec -T proxy curl -fsS --max-time 2 "http://$_b/healthz" >/dev/null 2>&1; then
-		echo "REFUSING TO FLIP: $_b is not answering /healthz."
-		echo "  nginx parses BOTH upstream blocks on every reload, so this would"
-		echo "  fail in either direction and the running config would silently"
-		echo "  stay put. $CONF has NOT been modified."
-		echo "  Bring it back:  docker compose up -d --wait $_b"
+for _p in proxy-old proxy-new; do
+	if ! docker compose exec -T switch curl -fsS --max-time 2 "http://$_p:8081/nginx-health" >/dev/null 2>&1; then
+		echo "REFUSING TO FLIP: $_p is not answering :8081/nginx-health."
+		echo "  the switch parses BOTH upstream blocks on every reload, so this"
+		echo "  would fail in either direction and the running config would"
+		echo "  silently stay put. $CONF has NOT been modified."
+		echo "  Bring it back:  docker compose up -d --wait $_p"
 		exit 1
 	fi
 done
@@ -103,7 +106,7 @@ diff -u -L "$CONF (before)" -L "$CONF (after)" "$BAK" "$CONF"
 echo
 
 # --------------------------------------------------------------- 3. validate
-if ! docker compose exec -T proxy nginx -t; then
+if ! docker compose exec -T switch nginx -t; then
 	echo "CONFIG TEST FAILED — restoring $CONF and leaving nginx untouched."
 	cp "$BAK" "$CONF"
 	rm -f "$BAK"
@@ -115,7 +118,7 @@ fi
 # nginx writes [emerg] to stderr and exits 1 while continuing to serve the old
 # configuration, which on stage is the presenter staring at OLD while saying
 # "and now it's new".
-if ! docker compose exec -T proxy nginx -s reload; then
+if ! docker compose exec -T switch nginx -s reload; then
 	echo "RELOAD FAILED — nginx is still running the PREVIOUS config."
 	echo "  Restoring $CONF so the repo does not claim a cutover that did not happen."
 	cp "$BAK" "$CONF"
@@ -131,7 +134,7 @@ fi
 _i=0
 _got=
 while [ "$_i" -lt 25 ]; do
-	_got=$(docker compose exec -T proxy curl -sS --max-time 1 "$ORACLE" 2>/dev/null | tr -d '\r\n')
+	_got=$(docker compose exec -T switch curl -sS --max-time 1 "$ORACLE" 2>/dev/null | tr -d '\r\n')
 	[ "$_got" = "$TARGET" ] && break
 	_i=$((_i + 1))
 	sleep 0.2
@@ -176,10 +179,11 @@ echo
 # would leave nginx writing into an unlinked inode while the status page
 # correctly reported a missing file.
 #
-# Issued INTO THE PROXY CONTAINER: the status service's mount is read-only by
-# design, and it is deliberately the tier that cannot alter the evidence.
+# Issued INTO THE SWITCH CONTAINER: the switch owns the rw evidence mount, the
+# status service's mount is read-only by design, and the switch is deliberately
+# the tier that writes — and so can truncate — the evidence.
 if [ "$TARGET" = "old" ]; then
-	docker compose exec -T proxy sh -c ": > $EVIDENCE"
+	docker compose exec -T switch sh -c ": > $EVIDENCE"
 	echo "evidence cleared — the next take starts from zero"
 	echo "  (no confirming request: the reset direction seeds nothing, and a"
 	echo "   request here would flash the convergence sequence on the projector)"

@@ -63,14 +63,14 @@ test:
 # the rewrite below a previous take's flip would leave the demo opening on NEW.
 #
 # The rewritten content is the FULL canonical five-line file, both comment lines
-# included. Those comments ARE the mechanism by which the Phase 2 flip reads on
-# screen (D-12); restoring only the map body would silently strip them on the
-# first reset. Keep this byte-identical to proxy/active-backend.conf.
+# included. Those comments ARE the mechanism by which the flip reads on screen
+# (D-12); restoring only the map body would silently strip them on the first
+# reset. Keep this byte-identical to switch/active-proxy.conf.
 #
 # Note the doubled $$ — Make consumes a single $ (RESEARCH Pitfall 9).
 reset:
 	docker compose down -v
-	printf '# proxy/active-backend.conf — THE ONLY FILE THE PRESENTER EDITS\n# Change `old` to `new` to cut over. Nothing else.\nmap $$server_port $$active_backend {\n    default old;\n}\n' > proxy/active-backend.conf
+	printf '# switch/active-proxy.conf — THE ONLY FILE THE PRESENTER EDITS\n# Change `old` to `new` to cut over. Nothing else.\nmap $$server_port $$active_backend {\n    default old;\n}\n' > switch/active-proxy.conf
 	docker compose up -d --build --wait
 	@$(MAKE) status
 
