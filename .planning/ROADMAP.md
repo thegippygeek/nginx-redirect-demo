@@ -25,7 +25,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 **v2.0 — Two-Proxy Switch Topology** *(subsequent milestone; v1 shipped as Phases 1–4 above, preserved at git tag `v1.0`)*
 
 - [x] **Phase 5: The Switch and Two Static Proxies — HTTP Cutover Re-Homed** - A front `switch` flips HTTP between two static proxies; the client still hits `app.demo.test:9092` unchanged and the status page is re-sourced from the switch (completed 2026-07-22)
-- [ ] **Phase 6: The SSH Stream Flip and Pre-Flip Validation** - The switch's one-line selector governs SSH:22 too, and the presenter can `curl`/`ssh app-new.demo.test` to prove the new stack live before flipping — with the verify script re-pointed
+- [x] **Phase 6: The SSH Stream Flip and Pre-Flip Validation** - The switch's one-line selector governs SSH:22 too, and the presenter can `curl`/`ssh app-new.demo.test` to prove the new stack live before flipping — with the verify script re-pointed (completed 2026-07-22)
 - [ ] **Phase 7: Instant Rollback, v1 Preservation, and the v2 Walkthrough** - Flip the switch back for an instant teardown-free rollback, prove the static proxies were never touched, keep v1 runnable, and rewrite the walkthrough for the v2 story
 
 ## Phase Details
@@ -201,11 +201,11 @@ Plans:
 Plans:
 **Wave 1**
 
-- [ ] 06-01-PLAN.md — Re-home v1's SSH:22 stream block onto the switch (3 string edits) and reconcile + re-enable section_ssh / section_hostkey; one selector edit flips both protocols (SW-03, finalizes SW-01)
+- [x] 06-01-PLAN.md — Re-home v1's SSH:22 stream block onto the switch (3 string edits) and reconcile + re-enable section_ssh / section_hostkey; one selector edit flips both protocols (SW-03, finalizes SW-01)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 06-02-PLAN.md — Pre-flip validation over both protocols: verify.sh `--target app-new` mode + `make verify-new-stack` and a non-destructive section_validate proving `curl`/`ssh app-new.demo.test` → NEW while `app.demo.test` → OLD (VAL-01, VAL-02, EV2-04)
+- [x] 06-02-PLAN.md — Pre-flip validation over both protocols: verify.sh `--target app-new` mode + `make verify-new-stack` and a non-destructive section_validate proving `curl`/`ssh app-new.demo.test` → NEW while `app.demo.test` → OLD (VAL-01, VAL-02, EV2-04)
 
 ### Phase 7: Instant Rollback, v1 Preservation, and the v2 Walkthrough
 
@@ -234,7 +234,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | 3. SSH Through the Stream Proxy | 3/3 | Complete | 2026-07-21 |
 | 4. Host-Key Gotcha and the Presenter Walkthrough | 4/4 | Complete | 2026-07-22 |
 | 5. The Switch and Two Static Proxies — HTTP Cutover Re-Homed | 3/3 | Complete    | 2026-07-22 |
-| 6. The SSH Stream Flip and Pre-Flip Validation | 0/2 | Not started | - |
+| 6. The SSH Stream Flip and Pre-Flip Validation | 2/2 | Complete    | 2026-07-22 |
 | 7. Instant Rollback, v1 Preservation, and the v2 Walkthrough | 0/TBD | Not started | - |
 
 ## Requirement Coverage

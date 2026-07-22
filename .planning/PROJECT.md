@@ -20,7 +20,7 @@ A live, on-stage flip of the nginx upstream from old to new where the client kee
 
 **Key context:** The map-flip + `nginx -s reload` *mechanism* is unchanged from v1, so the on-stage flip action is identical — what changes is the architecture around it. Tradeoff: one extra proxy hop each way. The v1 single-proxy demo is preserved intact.
 
-**Progress:** Phase 5 complete (2026-07-22) — the switch + two static proxies are live, HTTP:9092 re-homed through `switch → proxy-old → server-old`, the one-line flip re-homed to `switch/active-proxy.conf`, and evidence re-sourced from the switch (real client IP, backend's own `X-Backend` carried untouched — verified live, `make test` 155/0). SW-01's SSH:22 half and pre-flip validation land in Phase 6; rollback + v1 preservation + walkthrough in Phase 7.
+**Progress:** Phases 5–6 complete (2026-07-22). Phase 5: the switch + two static proxies live, HTTP:9092 re-homed and evidence re-sourced from the switch (real client IP, backend's own `X-Backend` untouched). Phase 6: the switch's SSH:22 stream block added so **one `switch/active-proxy.conf` edit flips both protocols** (D-39 shared include), plus the milestone payoff — pre-flip validation (`curl`/`ssh app-new.demo.test` → NEW while `app.demo.test` stays OLD) and `verify.sh --target app-new`. SW-01 now fully complete (both protocols). Verified live, `make test` 247/0. Remaining: Phase 7 — instant rollback, v1 preservation (tag), and the v2 walkthrough rewrite.
 
 ## Requirements
 
@@ -99,4 +99,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-07-22 — Phase 5 complete (switch + two static proxies, HTTP cutover re-homed)*
+*Last updated: 2026-07-22 — Phase 6 complete (SSH stream flip + pre-flip validation; one edit flips both protocols)*
