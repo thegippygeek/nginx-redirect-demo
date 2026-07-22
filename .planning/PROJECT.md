@@ -8,7 +8,12 @@ A self-contained Docker Compose demo that simulates migrating a hostname from on
 
 A live, on-stage flip of the nginx upstream from old to new where the client keeps hitting the same hostname and port, and unmistakably lands on the new server.
 
-## Current Milestone: v2.0 Two-Proxy Switch Topology
+## Current State
+
+**Latest shipped: v2.0 — Two-Proxy Switch Topology** (2026-07-22, tag `v2.0`). No milestone is currently active — run `/gsd-new-milestone` to start the next. Shipped-milestone index: `.planning/MILESTONES.md`. Deferred ideas (real-infra deploy, automated playback, TLS variant) are tracked in `.planning/REQUIREMENTS.md`.
+
+<details>
+<summary>v2.0 — Two-Proxy Switch Topology (shipped)</summary>
 
 **Goal:** Replace v1's single flip-in-place proxy with a blue-green proxy tier — a front "switch" nginx that flips traffic between two static proxies, enabling pre-flip validation of the new stack and instant rollback.
 
@@ -21,6 +26,8 @@ A live, on-stage flip of the nginx upstream from old to new where the client kee
 **Key context:** The map-flip + `nginx -s reload` *mechanism* is unchanged from v1, so the on-stage flip action is identical — what changes is the architecture around it. Tradeoff: one extra proxy hop each way. The v1 single-proxy demo is preserved intact.
 
 **Status: v2.0 COMPLETE (2026-07-22)** — all 3 phases shipped, all 18 v2.0 requirements verified (`make test` 257/0 + a human walkthrough cold-read). Phase 5: the switch + two static proxies, HTTP:9092 re-homed, evidence re-sourced from the switch. Phase 6: the switch's SSH:22 stream block so **one `switch/active-proxy.conf` edit flips both protocols** (D-39 shared include), plus pre-flip validation (`curl`/`ssh app-new.demo.test` → NEW while `app.demo.test` stays OLD). Phase 7: instant rollback (flip back, no teardown), "the old proxy is never touched" as a `shasum -a 256` proof, v1 preserved at tag `v1.0`, and the presenter walkthrough rewritten to the 11-beat v2 narrative. The blue-green proxy tier is done: a live front-door flip between two static proxies with pre-flip validation and instant rollback.
+
+</details>
 
 ## Requirements
 

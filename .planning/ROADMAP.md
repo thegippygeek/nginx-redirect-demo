@@ -155,82 +155,13 @@ Plans:
 
 *The phases below belong to milestone **v2.0 — Two-Proxy Switch Topology**. They continue the numbering from v1's Phase 4; Phases 1–4 above are shipped and unchanged.*
 
-### Phase 5: The Switch and Two Static Proxies — HTTP Cutover Re-Homed
+### Phases 5–7 — Milestone v2.0 (Two-Proxy Switch Topology) — ✅ SHIPPED 2026-07-22
 
-**Goal**: Replace v1's single flip-in-place proxy with a blue-green tier — a front `switch` nginx and two *static* single-upstream proxies (`proxy-old`→`server-old`, `proxy-new`→`server-new`, aliased `app-old`/`app-new.demo.test`). The client still hits `app.demo.test:9092` exactly as in v1, HTTP lands on OLD through `switch → proxy-old → server-old`, and one edit-and-reload of the switch's one-line map flips HTTP to NEW. The status page and evidence log are re-sourced from the **switch**, which sees the client's real `remote_addr` while the backend's own `X-Backend` identity still flows back up the chain.
-**Mode:** mvp
-**Depends on**: Phase 4
-**Requirements**: SW-01, SW-02, SW-04, PROX-01, PROX-02, PROX-03, EV2-01, EV2-02, EV2-03, MIG-01
-**Success Criteria** (what must be TRUE):
+Full phase details, plans, and success criteria archived in **`.planning/milestones/v2.0-ROADMAP.md`** (tag `v2.0`).
 
-  1. `docker compose up` brings up the switch, `proxy-old`, `proxy-new`, `server-old`, `server-new`, and status together with one command, and `curl http://localhost:9092` lands on OLD through the switch and the static proxy — the client's hostname and port unchanged from v1
-  2. Editing the one-line `default old`→`new` map in `switch/active-proxy.conf` and reloading the switch (`nginx -s reload`) flips HTTP to NEW using the identical client command — no client-side change, the same map-flip + reload mechanism as v1's CUT-01/CUT-02
-  3. The status page reads the **switch's** log: recent-request rows show the client's real `remote_addr` (not a downstream proxy's address), and `backend=OLD/NEW` is carried back from the backend's own `X-Backend` header through the proxy chain, asserted by no proxy tier
-  4. The status page shows the current switch selector (which proxy is active) and recent requests with the backend that answered each — the v1 EVID-02/03 guarantees, re-sourced from the switch
-
-**Plans**: 3 plans
-**UI hint**: yes
-
-Plans:
-**Wave 1**
-
-- [x] 05-01-PLAN.md — The three nginx tiers: switch (flip surface + evidence writer, upstreams re-pointed, +remote field) and two static single-upstream proxies, each config-tested under nginx -t (SW-01, SW-02, PROX-01, PROX-02, EV2-01, EV2-02)
-
-**Wave 2** *(blocked on Wave 1 completion)*
-
-- [x] 05-02-PLAN.md — The rig comes up: compose split into switch + proxy-old + proxy-new with the health cascade, alias moved to the switch, evidence re-sourced (client remote_addr rendered), make up re-pointed, topology smoke sections reconciled (SW-01, PROX-01/02/03, EV2-01/02/03, MIG-01)
-
-**Wave 3** *(blocked on Wave 2 completion)*
-
-- [x] 05-03-PLAN.md — The flip re-homed: flip.sh + make reset re-pointed to the switch, section_cutover reconciled, make test green across the HTTP surface with the switch-SSH sections deferred to Phase 6 (SW-04, EV2-03)
-
-### Phase 6: The SSH Stream Flip and Pre-Flip Validation
-
-**Goal**: Extend the switch's single one-line selector to govern the SSH:22 `stream` path as well as HTTP:9092, so one edit flips both protocols — then deliver the milestone's new payoff: the presenter can `curl app-new.demo.test` and `ssh app-new.demo.test` to prove the new stack is live *before* any cutover (while live traffic on `app.demo.test` still lands on OLD), with the verify script re-pointed at the switch and able to target `app-new.demo.test` directly.
-**Mode:** mvp
-**Depends on**: Phase 5
-**Requirements**: SW-03, VAL-01, VAL-02, EV2-04
-**Success Criteria** (what must be TRUE):
-
-  1. `ssh app.demo.test` on port 22 lands on the active backend through `switch → proxy → server`, and the same one-line selector edit that flips HTTP also flips SSH — one edit, both protocols, the switch reloaded the same way as v1
-  2. Before any cutover, `curl app-new.demo.test` returns NEW and `ssh app-new.demo.test` shows `server-new`'s banner, while `app.demo.test` still lands on OLD — the new stack is provably live over both protocols before the presenter commits to the flip
-  3. The verify script asserts over both HTTP and SSH which backend answered *through the switch*, exits non-zero on mismatch, and can be pointed at `app-new.demo.test` to validate the new stack pre-flip
-
-**Plans**: 2 plans
-
-Plans:
-**Wave 1**
-
-- [x] 06-01-PLAN.md — Re-home v1's SSH:22 stream block onto the switch (3 string edits) and reconcile + re-enable section_ssh / section_hostkey; one selector edit flips both protocols (SW-03, finalizes SW-01)
-
-**Wave 2** *(blocked on Wave 1 completion)*
-
-- [x] 06-02-PLAN.md — Pre-flip validation over both protocols: verify.sh `--target app-new` mode + `make verify-new-stack` and a non-destructive section_validate proving `curl`/`ssh app-new.demo.test` → NEW while `app.demo.test` → OLD (VAL-01, VAL-02, EV2-04)
-
-### Phase 7: Instant Rollback, v1 Preservation, and the v2 Walkthrough
-
-**Goal**: Close the milestone's story. After a cutover the presenter rolls back to OLD instantly by flipping the switch selector back and reloading — no teardown; the two static proxies are shown byte-unchanged across the whole cutover so "the old proxy is never touched" is literally true; the v1 single-proxy demo stays runnable from its preserved form (git tag `v1.0` / a kept compose file); and the presenter walkthrough is rewritten for the v2 narrative — validate the new stack → flip the switch → land on new → (host-key gotcha, inherited from v1) → roll back → the old proxy was never touched.
-**Mode:** mvp
-**Depends on**: Phase 6
-**Requirements**: VAL-03, VAL-04, MIG-02, MIG-03
-**Success Criteria** (what must be TRUE):
-
-  1. After a cutover to NEW, the presenter flips the switch selector back to `old` and reloads, and both HTTP and SSH return to landing on OLD — an instant rollback with no teardown of any container
-  2. The two static proxies' config files are shown byte-identical before and after the whole cutover-and-rollback cycle — "the old proxy is never touched" is a verifiable checksum, not a claim
-  3. The v1 single-proxy demo still comes up and runs from its preserved form (git tag `v1.0` or a kept compose file), unbroken by the v2 restructure
-  4. A rewritten walkthrough runs the full v2 narrative in order — validate `app-new.demo.test` → flip the switch → land on new → host-key gotcha (inherited from v1, surfaced not re-scoped) → roll back → the old proxy was never touched — each beat with its command, expected output, and takeaway
-
-**Plans**: 2 plans
-**Mode:** mvp
-
-Plans:
-**Wave 1**
-
-- [x] 07-01-PLAN.md — Instant rollback + "the old proxy is never touched": section_rollback (VAL-03 both protocols return to OLD with no teardown; VAL-04 shasum -a 256 triple-equality over the two static-proxy configs + StartedAt/worker-PID unchanged) and section_preserve (MIG-03 non-destructive git-plumbing assertions the v1.0 tag is self-contained), wired into the dispatch case + `all` (VAL-03, VAL-04, MIG-03)
-
-**Wave 2** *(blocked on Wave 1 completion; shares scripts/smoke.sh)*
-
-- [x] 07-02-PLAN.md — The v2 walkthrough: `make proxies-untouched`, then the LOCKSTEP rewrite of WALKTHROUGH.md (11-beat v2 narrative) with section_walkthrough's hard-coded expectations updated in the SAME commit, plus the blocking human cold-read for criterion 4 comprehensibility (MIG-02)
+- **Phase 5** — The switch + two static proxies; HTTP cutover re-homed; evidence re-sourced from the switch.
+- **Phase 6** — The switch's SSH:22 stream flip (one edit, both protocols) + pre-flip `app-new.demo.test` validation.
+- **Phase 7** — Instant rollback (no teardown), the byte-unchanged checksum, v1 preserved at tag `v1.0`, and the v2 walkthrough rewrite.
 
 ## Progress
 
