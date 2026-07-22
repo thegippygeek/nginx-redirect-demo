@@ -554,10 +554,10 @@ function emptyEl(){
    on screen under a desaturation filter is exactly the stale-but-plausible
    artefact D-28 forbids. */
 var ERR_BODY = {
-  log: "Cannot read the proxy access log. Not showing a stale reading.",
-  config: "Cannot read the active-backend config. Not showing a stale reading.",
-  "log+config": "Cannot read the proxy access log or the active-backend config. Not showing a stale reading.",
-  proxy: "Cannot reach the proxy. Not showing a stale reading.",
+  log: "Cannot read the switch's access log. Not showing a stale reading.",
+  config: "Cannot read the switch's active-proxy config. Not showing a stale reading.",
+  "log+config": "Cannot read the switch's access log or active-proxy config. Not showing a stale reading.",
+  proxy: "Cannot reach the switch. Not showing a stale reading.",
   status: "Cannot reach the status service. Not showing a stale reading."
 };
 
@@ -565,7 +565,7 @@ function errorEl(data){
   var wrap = el("div", "empty");
   wrap.appendChild(el("div", "eb", ERR_BODY[data.failing_source] || ERR_BODY.log));
   if (data.detail) wrap.appendChild(el("div", "det", data.detail));
-  wrap.appendChild(el("div", "det", "Check: docker compose ps proxy"));
+  wrap.appendChild(el("div", "det", "Check: docker compose ps switch · docker compose logs switch"));
   return wrap;
 }
 
