@@ -1,7 +1,7 @@
 #!/bin/sh
 # scripts/smoke.sh — demo rig smoke tests.
 #
-# Usage: sh scripts/smoke.sh [backends|proxy|redirect|cutover|validate|ssh|walkthrough|hostkey|all]
+# Usage: sh scripts/smoke.sh [backends|proxy|redirect|preserve|cutover|validate|ssh|rollback|walkthrough|hostkey|all]
 #   no argument == all
 #
 # POSIX sh only. Deliberately NOT `set -e`: every assertion runs so the
@@ -2456,6 +2456,10 @@ all)
 	section_backends
 	section_proxy
 	section_redirect
+	# A pure reader: it only reads the git object store to prove the v1.0 tag still
+	# holds a self-contained single-proxy demo. It touches no rig state, so it costs
+	# nothing to run early and its failures arrive before the rig is disturbed.
+	section_preserve
 	section_cutover
 	# AFTER cutover, deliberately: that section leaves the rig selecting OLD,
 	# which is the exact precondition this pure-reader pre-flip proof asserts. It
@@ -2465,6 +2469,11 @@ all)
 	# AFTER cutover, deliberately: that section leaves the rig selecting OLD,
 	# which is the state this one expects to find.
 	section_ssh
+	# AFTER section_ssh, deliberately: this one is DESTRUCTIVE — it flips the
+	# selector through a full cutover+rollback cycle — and leaves the rig on OLD,
+	# the precondition the following sections expect. Placed before the walkthrough
+	# and hostkey readers so its full cycle runs on a settled rig.
+	section_rollback
 	# Before the destructive section, deliberately: this one is a pure reader —
 	# it touches no rig state and executes nothing it extracts — so it costs
 	# nothing to run early and its failures arrive before the rig is disturbed.
@@ -2477,7 +2486,7 @@ all)
 	section_hostkey
 	;;
 *)
-	echo "usage: sh scripts/smoke.sh [backends|proxy|redirect|cutover|validate|ssh|walkthrough|hostkey|all]" >&2
+	echo "usage: sh scripts/smoke.sh [backends|proxy|redirect|preserve|cutover|validate|ssh|rollback|walkthrough|hostkey|all]" >&2
 	exit 2
 	;;
 esac
