@@ -4,7 +4,7 @@ milestone: v2.0
 milestone_name: Two-Proxy Switch Topology
 current_phase: 7
 status: completed
-stopped_at: Completed 04-04-PLAN.md — final plan of v1
+stopped_at: v2.0 milestone complete — Phases 5-7 shipped, archived, tagged v2.0
 last_updated: "2026-07-22T06:15:46.716Z"
 last_activity: 2026-07-22
 last_activity_desc: Phase 7 complete
