@@ -2329,6 +2329,35 @@ section_hostkey() {
 		'grep -qE "UserKnownHostsFile=/dev/null" scripts/verify.sh && grep -qE "StrictHostKeyChecking=no" scripts/verify.sh'
 }
 
+# section_preserve — MIG-03: the v1 single-proxy demo remains available and
+# unbroken via the `v1.0` git tag, proven NON-DESTRUCTIVELY.
+#
+# NON-DESTRUCTIVE by construction: this section only READS the git object store.
+# It never flips the selector, touches no rig state, and installs NO restore trap,
+# because it disturbs nothing to restore. It asserts the TAG's CONTENT via
+# `git rev-parse`/`git show`/`git cat-file` — NEVER `git checkout`/`switch`/`stash`,
+# which would dirty the working tree mid-run.
+section_preserve() {
+	echo "--- preserve ---"
+
+	# The tag itself exists — the anchor for every content assertion below.
+	assert "MIG-03 the v1.0 tag exists" \
+		'git rev-parse -q --verify refs/tags/v1.0'
+
+	# v1.0 preserves the single-proxy topology: one `proxy:` service and NO
+	# `switch:` service (the v2 restructure introduced the switch tier).
+	assert "MIG-03 v1.0 preserves the single-proxy topology (a proxy service, no switch)" \
+		'git show v1.0:compose.yaml | grep -qE "^  proxy:" && ! git show v1.0:compose.yaml | grep -qE "^  switch:"'
+
+	# v1.0 ships the preserved proxy config and its flip include.
+	assert "MIG-03 v1.0 ships the preserved proxy config and flip include" \
+		'git cat-file -e v1.0:proxy/nginx.conf && git cat-file -e v1.0:proxy/active-backend.conf'
+
+	# v1.0 is self-contained: its Makefile brings the single-proxy demo up standalone.
+	assert "MIG-03 v1.0 Makefile brings it up standalone (has an up: target)" \
+		'git show v1.0:Makefile | grep -qE "^up:"'
+}
+
 # section_rollback — VAL-03 (instant rollback, no teardown) + VAL-04 (the two
 # static proxies are byte-unchanged, and not even reloaded) proven over ONE real
 # cutover-then-rollback cycle: flip.sh new (THE CUTOVER), then flip.sh old (THE
@@ -2419,6 +2448,7 @@ redirect) section_redirect ;;
 cutover) section_cutover ;;
 validate) section_validate ;;
 ssh) section_ssh ;;
+preserve) section_preserve ;;
 rollback) section_rollback ;;
 walkthrough) section_walkthrough ;;
 hostkey) section_hostkey ;;
