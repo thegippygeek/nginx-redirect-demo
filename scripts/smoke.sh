@@ -1,7 +1,7 @@
 #!/bin/sh
 # scripts/smoke.sh — demo rig smoke tests.
 #
-# Usage: sh scripts/smoke.sh [backends|proxy|redirect|cutover|ssh|walkthrough|hostkey|all]
+# Usage: sh scripts/smoke.sh [backends|proxy|redirect|cutover|validate|ssh|walkthrough|hostkey|all]
 #   no argument == all
 #
 # POSIX sh only. Deliberately NOT `set -e`: every assertion runs so the
@@ -1125,6 +1125,98 @@ finish_ssh_state() {
 	rm -f "$_sshbak"
 }
 
+# ---- the PRE-FLIP proof (VAL-01 / VAL-02 / EV2-04) ---------------------------
+#
+# The milestone's headline payoff, and the one thing the two-proxy topology buys
+# over v1: BEFORE any cutover, the presenter can watch the new stack answer on
+# BOTH protocols. `curl app-new.demo.test` -> NEW and `ssh app-new.demo.test` ->
+# server-new's banner, both taken DIRECTLY through proxy-new's Docker-DNS alias,
+# bypassing the switch — while `app.demo.test` (through the switch) still lands
+# on OLD.
+#
+# NON-DESTRUCTIVE by construction: this section only READS. It never flips the
+# selector and installs NO restore trap, because it disturbs nothing to restore.
+# It asserts the switch is on OLD as a precondition — if it is not, that is a
+# genuine failure to report, NOT a state to correct by flipping.
+#
+# BOTH app-new probes run from INSIDE the client container: app-new.demo.test is
+# an alias on proxy-new resolvable ONLY on the demo network (no proxy host port
+# is published — T-05-04/T-06-04), and its HTTP listener is proxy-new's :80, NOT
+# the switch's 9092.
+section_validate() {
+	echo "--- validate ---"
+
+	# Restated locally so `sh scripts/smoke.sh validate` runs standalone — assert
+	# reaches its condition through a fresh `sh -c`, which inherits exported
+	# VARIABLES but not shell functions, so the option set must be an env var.
+	# DEMO-ONLY host-key options, the same set section_ssh justifies at length:
+	# Phase 4 stages a host-key mismatch, and without them these routing reads
+	# would fail for the wrong reason. Never a default anywhere else in this repo.
+	export SSH_OPTS="-o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+
+	# Non-destructive precondition: read the selector the way selector_now() does,
+	# inline (the function is invisible inside a fresh `sh -c`). We assert OLD; we
+	# do NOT flip to reach it.
+	assert "VAL precondition: the switch selects OLD before validation (non-destructive — never flips)" \
+		'test "$(sed -n "s/^[[:space:]]*default[[:space:]][[:space:]]*\([A-Za-z0-9_.-][A-Za-z0-9_.-]*\)[[:space:]]*;.*/\1/p" switch/active-proxy.conf | head -1)" = old'
+
+	# ---- VAL-01: app-new answers NEW over HTTP while the switch serves OLD ----
+	#
+	# Asserted TOGETHER, in one condition: the whole claim is "new stack live AND
+	# live traffic still on old", and splitting it would let a half-truth pass. The
+	# app-new probe runs in the client container on port 80 (the alias's own
+	# listener); the switch probe runs on the host at 9092. Anchored whole-line the
+	# same way section_backends anchors /whoami, so a body naming both cannot pass.
+	assert "VAL-01 pre-flip: app-new.demo.test -> NEW over HTTP (client container, :80) while localhost:9092 still serves OLD" \
+		'out_new=$(docker compose exec -T client curl -fsS --max-time 5 http://app-new.demo.test/whoami 2>&1)
+		 rc=$?
+		 out_switch=$(curl -fsS --max-time 5 http://localhost:9092/whoami 2>&1)
+		 test "$rc" -eq 0 &&
+		 printf "%s\n" "$out_new" | grep -qx "NEW server-new" &&
+		 printf "%s\n" "$out_switch" | grep -qx "OLD server-old"'
+
+	# ---- VAL-02: app-new answers NEW over SSH while app.demo.test stays OLD ----
+	#
+	# The capture idiom, verbatim from section_ssh and verify.sh: assign the ssh
+	# invocation via command substitution with 2>&1, read $? on the VERY NEXT line,
+	# grep the captured VARIABLE. The invocation is NEVER on the left of a pipe — a
+	# pipeline reports the last command's status and a host-key failure would read
+	# as exit 0. `true` emits no stdout, so the captured `NEW server-new` line can
+	# only be the pre-auth banner over proxy-new's static stream.
+	assert "VAL-02 pre-flip: ssh app-new.demo.test banner -> NEW server-new (client container, :22, non-piped capture)" \
+		'out=$(docker compose exec -T client timeout 10 ssh $SSH_OPTS demo@app-new.demo.test true 2>&1)
+		 rc=$?
+		 test "$rc" -eq 0 && printf "%s\n" "$out" | grep -qx "NEW server-new"'
+
+	# Corroboration: the remote command's OWN stdout. The banner is the contractual
+	# claim; `hostname` proves a shell really ran on server-new, not a proxy tier
+	# synthesising identity.
+	assert "VAL-02 corroboration: ssh app-new.demo.test hostname -> server-new (a shell really ran on the new backend)" \
+		'out=$(docker compose exec -T client timeout 10 ssh $SSH_OPTS demo@app-new.demo.test hostname 2>&1)
+		 rc=$?
+		 test "$rc" -eq 0 && printf "%s\n" "$out" | grep -qx "server-new"'
+
+	# The concurrent half: through the switch, SSH still lands on OLD. This is what
+	# makes the proof mean something — the new stack is live AND the cutover has
+	# not happened.
+	assert "VAL-02 concurrent: ssh app.demo.test still -> OLD server-old through the switch (pre-flip)" \
+		'out=$(docker compose exec -T client timeout 10 ssh $SSH_OPTS demo@app.demo.test true 2>&1)
+		 rc=$?
+		 test "$rc" -eq 0 && printf "%s\n" "$out" | grep -qx "OLD server-old"'
+
+	# ---- EV2-04: the presenter surface agrees ----
+	#
+	# `verify.sh --target app-new` is the one command the presenter actually runs;
+	# assert it exits 0 and names NEW on BOTH its labelled lines. `^SSH ` is
+	# uppercase and cannot be mistaken for an ssh invocation on the left of a pipe.
+	assert "EV2-04 pre-flip: verify.sh --target app-new exits 0 and reports NEW on both the HTTP and SSH lines" \
+		'out=$(sh scripts/verify.sh --target app-new 2>&1)
+		 rc=$?
+		 test "$rc" -eq 0 &&
+		 printf "%s\n" "$out" | grep -qE "^HTTP .*NEW server-new" &&
+		 printf "%s\n" "$out" | grep -qE "^SSH .*NEW server-new"'
+}
+
 section_ssh() {
 	echo "--- ssh ---"
 
@@ -2243,6 +2335,7 @@ backends) section_backends ;;
 proxy) section_proxy ;;
 redirect) section_redirect ;;
 cutover) section_cutover ;;
+validate) section_validate ;;
 ssh) section_ssh ;;
 walkthrough) section_walkthrough ;;
 hostkey) section_hostkey ;;
@@ -2251,6 +2344,11 @@ all)
 	section_proxy
 	section_redirect
 	section_cutover
+	# AFTER cutover, deliberately: that section leaves the rig selecting OLD,
+	# which is the exact precondition this pure-reader pre-flip proof asserts. It
+	# flips nothing and restores nothing — the milestone payoff (new stack live
+	# over both protocols BEFORE the cutover) taken while the switch is on OLD.
+	section_validate
 	# AFTER cutover, deliberately: that section leaves the rig selecting OLD,
 	# which is the state this one expects to find.
 	section_ssh
@@ -2266,7 +2364,7 @@ all)
 	section_hostkey
 	;;
 *)
-	echo "usage: sh scripts/smoke.sh [backends|proxy|redirect|cutover|ssh|walkthrough|hostkey|all]" >&2
+	echo "usage: sh scripts/smoke.sh [backends|proxy|redirect|cutover|validate|ssh|walkthrough|hostkey|all]" >&2
 	exit 2
 	;;
 esac
