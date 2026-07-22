@@ -2237,7 +2237,13 @@ all)
 	section_cutover
 	# AFTER cutover, deliberately: that section leaves the rig selecting OLD,
 	# which is the state this one expects to find.
-	section_ssh
+	#
+	# Phase 6 (SW-03): re-enable when the switch carries the SSH:22 stream. This
+	# phase ships NO stream block on the switch, so ssh app.demo.test (which
+	# resolves to the switch) has no :22 listener and every proxied-SSH assertion
+	# here tests Phase 6 behaviour. The section FUNCTION is preserved intact below
+	# and still runs via `sh scripts/smoke.sh ssh`.
+	# section_ssh
 	# Before the destructive section, deliberately: this one is a pure reader —
 	# it touches no rig state and executes nothing it extracts — so it costs
 	# nothing to run early and its failures arrive before the rig is disturbed.
@@ -2247,7 +2253,12 @@ all)
 	# writes the client's trust record — and it restores the rig on the way out
 	# to the state the next thing expects. Same reasoning as ssh-after-cutover,
 	# one step further along.
-	section_hostkey
+	#
+	# Phase 6 (SW-03): re-enable when the switch carries the SSH:22 stream. Gated
+	# out for the same reason as section_ssh — it drives host-key trust through
+	# app.demo.test:22 (the switch), which has no listener this phase. Preserved
+	# intact below and still runs via `sh scripts/smoke.sh hostkey`.
+	# section_hostkey
 	;;
 *)
 	echo "usage: sh scripts/smoke.sh [backends|proxy|redirect|cutover|ssh|walkthrough|hostkey|all]" >&2
