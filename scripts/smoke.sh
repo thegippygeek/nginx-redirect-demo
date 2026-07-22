@@ -1906,6 +1906,7 @@ section_walkthrough() {
 	# one is not — reordering is the edit that would confuse a presenter on
 	# stage, and it is the one this turns red.
 	WT_NARRATIVE=$(grep -E '^### [0-9]+\.' "$WT" 2>/dev/null | tr '[:upper:]' '[:lower:]' | awk '
+		/validate/          { printf "validate-new ";      next }
 		/show old/          { printf "show-old ";          next }
 		/redirect contrast/ { printf "redirect-contrast "; next }
 		/prime/             { printf "prime ";             next }
@@ -1913,6 +1914,8 @@ section_walkthrough() {
 		/gotcha/            { printf "gotcha ";            next }
 		/wrong fix/         { printf "wrong-fix ";         next }
 		/right fix/         { printf "right-fix ";         next }
+		/roll ?back/        { printf "rollback ";          next }
+		/never touched/     { printf "proxies-untouched "; next }
 		/reset/             { printf "reset ";             next }
 		                    { printf "UNKNOWN " }
 	')
@@ -1990,12 +1993,12 @@ section_walkthrough() {
 		'test "$WT_PREREQ_BAD" = "0" || { echo "unintroduced:$WT_PREREQ_NAMES"; false; }'
 
 	# ---- part 4: structural completeness and narrative order -------------
-	assert "WALK-01 the document carries eight numbered step headings" \
-		'test "$WT_STEPS" = "8"'
-	assert "WALK-01 the step headings are numbered 1..8 in ascending order" \
-		'test "$WT_NUMSEQ" = "1 2 3 4 5 6 7 8 "'
+	assert "WALK-01 the document carries eleven numbered step headings" \
+		'test "$WT_STEPS" = "11"'
+	assert "WALK-01 the step headings are numbered 1..11 in ascending order" \
+		'test "$WT_NUMSEQ" = "1 2 3 4 5 6 7 8 9 10 11 "'
 	assert "WALK-01 the step headings appear in the fixed D-55 narrative order" \
-		'test "$WT_NARRATIVE" = "show-old redirect-contrast prime flip gotcha wrong-fix right-fix reset "'
+		'test "$WT_NARRATIVE" = "validate-new show-old redirect-contrast prime flip gotcha wrong-fix right-fix rollback proxies-untouched reset "'
 	assert "WALK-03 every step carries a Run block — one per heading, none orphaned" \
 		'test "$WT_RUN" = "$WT_STEPS"'
 	assert "WALK-03 every step carries an Expect block — one per heading, none orphaned" \
@@ -2016,6 +2019,8 @@ section_walkthrough() {
 		'grep -q "make reset" "$WT_TMP/traps"'
 	assert "WALK-03 trap: make verify is structurally blind to host keys (D-57)" \
 		'grep -q "make verify" "$WT_TMP/traps"'
+	assert "WALK-03 trap: make flip-old is the reset direction and truncates the evidence log (D-57/Pitfall 3)" \
+		'grep -q "flip-old" "$WT_TMP/traps"'
 
 	# ---- guards over this section's own text -----------------------------
 	#

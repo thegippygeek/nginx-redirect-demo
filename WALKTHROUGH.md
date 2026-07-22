@@ -6,9 +6,13 @@ pressure. Every step carries three blocks in the same order — **Run**, **Expec
 so you can find the one you need by position rather than by reading.
 
 The demo shows a hostname being migrated from one server to another with nobody on the
-client side changing anything, and then shows the one thing that genuinely does break on
-migration day: SSH host-key verification. Eight beats, about **twelve minutes** with
-narration, or **five** if you skip the browser contrast.
+client side changing anything. This is the v2 story: there are now **two full stacks**
+behind the switch, so you validate the new one end to end *before* you commit, flip both
+protocols over in one reload, walk straight into the one thing that genuinely breaks on
+migration day — SSH host-key verification — fix it the wrong way and then the right way,
+**roll the whole thing back in a single reload with nothing torn down**, and finish by
+proving the old stack was never touched at all. Eleven beats, about **fifteen minutes**
+with narration, or **eight** if you skip the browser contrast.
 
 ---
 
@@ -22,14 +26,14 @@ Work through them before the room fills up, not while it watches.
       The browser runs outside Docker and cannot query Docker's DNS. Without this line the
       browser and the `client` container are using two different names on stage, and *"the
       hostname never changed"* is the exact claim this demo rests on.
-- [ ] **The rig is up and green.** Run `make up`, then confirm with `make status`: five
-      services, all `healthy` or `running`, and a `hosts: OK` line at the foot. `make up`
+- [ ] **The rig is up and green.** Run `make up`, then confirm with `make status`: every
+      service `healthy` or `running`, and a `hosts: OK` line at the foot. `make up`
       builds — a plain `docker compose up -d` without a build can leave you verifying
-      against a stale image.
+      against a stale image. `make up` also clears the evidence log for you.
 - [ ] **A private / incognito browser window is already open.** A `301 Moved Permanently`
       is cacheable *indefinitely* by specification and browsers honour that enthusiastically.
       In a normal window a second take jumps straight to the target without ever contacting
-      nginx, no redirect appears in the log, and beat 2 quietly lies to the room.
+      nginx, no redirect appears in the log, and the contrast beat quietly lies to the room.
 - [ ] **The evidence log is cleared.** `make up` does it; `make clear-evidence` is the
       explicit lever. Otherwise the projected status page opens mid-count with a previous
       take's numbers and everything looks second-hand.
@@ -55,7 +59,32 @@ Work through them before the room fills up, not while it watches.
 
 ## The demo
 
-### 1. Show OLD — the proxied request
+### 1. Validate the new stack, pre-cutover
+
+**Run**
+
+```bash
+make verify-new-stack
+```
+
+**Expect** — one HTTP request and one SSH connection, taken from inside the `client`
+container straight at the new stack's own alias `app-new.demo.test`, both reporting NEW
+*before you have flipped anything*:
+
+```
+VERIFY: expecting NEW over app-new.demo.test (pre-flip, direct to the new stack, from the client container)
+HTTP  http://app-new.demo.test/whoami   ->  NEW server-new
+SSH   demo@app-new.demo.test:22          ->  NEW server-new  [banner; remote hostname: server-new]
+OK  both protocols report NEW — the expectation holds on HTTP and on SSH.
+```
+
+**Say** — "Before I touch live traffic I want to know the destination is actually up. This
+talks directly to the new stack on its own name and it answers NEW on both protocols —
+while the switch in front of it is still sending every real request to the old box. That is
+what the two-stack topology buys you over a naive cutover: you commit to the flip *after*
+you have seen the new side answer, not before and hope."
+
+### 2. Show OLD through the switch
 
 **Run**
 
@@ -74,11 +103,12 @@ SSH   demo@app.demo.test:22              ->  OLD server-old  [banner; remote hos
 OK  both protocols report OLD — the expectation holds on HTTP and on SSH.
 ```
 
-**Say** — "There are two separate boxes behind this. Right now everything lands on the old
-one, over HTTP *and* over SSH, and the address I typed is the address I am still looking at.
-Somebody answered on my behalf and I cannot tell from here which somebody it was."
+**Say** — "Same address, the one the audience uses. Right now everything lands on the old
+box, over HTTP *and* over SSH, and the name I typed is the name I am still looking at.
+Somebody answered on my behalf and I cannot tell from here which somebody it was. That
+gap between what I typed and who answered is the whole migration."
 
-### 2. The redirect contrast — the other way of doing it
+### 3. The redirect contrast — the other way
 
 **Run**
 
@@ -105,7 +135,7 @@ after this is the first mechanism."
 leaves the URL bar alone, `:9093` visibly rewrites it to `:9090`. The URL bar is the whole
 argument. This is the beat that needs the incognito window.)*
 
-### 3. Prime the SSH trust — load-bearing, do not skip
+### 4. Prime the SSH trust on OLD — load-bearing, do not skip
 
 **Run**
 
@@ -133,7 +163,7 @@ an *unseen* host on first sight and still refuses a *changed* one — that is a 
 thing from switching host-key verification off, which this demo never does and never
 teaches.
 
-### 4. The flip — one word, one reload
+### 5. The flip — one word, one reload
 
 **Run**
 
@@ -147,9 +177,11 @@ graceful reload and one confirming request:
 ```
 FLIP: old -> new
 
---- proxy/active-backend.conf (before)
-+++ proxy/active-backend.conf (after)
+--- switch/active-proxy.conf (before)
++++ switch/active-proxy.conf (after)
 @@ -1,5 +1,5 @@
+ # switch/active-proxy.conf — THE ONLY FILE THE PRESENTER EDITS
+ # Change old to new to cut over. Nothing else.
  map $server_port $active_backend {
 -    default old;
 +    default new;
@@ -168,7 +200,7 @@ green **NEW**, the URL bar has not moved. On the status page, `CONFIG SAYS NEW` 
 `TRAFFIC SHOWS OLD` for a beat and then the two readings converge — that gap is the cutover
 happening.)*
 
-### 5. The gotcha  ⚠ DESTRUCTIVE — re-arm with `make rearm` before the next take
+### 6. The gotcha  ⚠ DESTRUCTIVE — re-arm with `make rearm` before the next take
 
 **Run**
 
@@ -205,14 +237,14 @@ a raw TCP relay and not something terminating my connection: a device that termi
 would have presented its own key and I would never have known the backend moved. This is
 the thing that actually breaks on migration day, and it breaks for every client at once."
 
-*If it does not fire:* you skipped beat 3, or the fix is still applied from a previous take,
+*If it does not fire:* you skipped beat 4, or the fix is still applied from a previous take,
 or you never flipped. Three conditions have to hold together — a trust record for
 `app.demo.test` recorded while the selector was on old, two backends still presenting
-different keys, and a flip. Also note that a session you left open *before* the flip keeps
-talking to its original backend for its entire life, so an old terminal will show nothing at
-all. Open a new one.
+different keys, and a flip. A session left open *before* the flip keeps talking to its
+original backend for its whole life, so an old terminal will show nothing at all. Open a
+new one.
 
-### 6. The wrong fix — the instinct, and it genuinely works
+### 7. The wrong fix — the instinct, and it works
 
 **Run**
 
@@ -239,22 +271,21 @@ checking anything. And it fixed exactly one machine. That record lives on every 
 every CI runner, every jump box, every automation controller that has ever connected to this
 name. How many of those can you reach this afternoon?"
 
-*Back to the armed state before beat 7:* `make rearm`, then `make flip-old`, then `make ssh`
+*Back to the armed state before beat 8:* `make rearm`, then `make flip-old`, then `make ssh`
 (type `exit`), then `make flip-new`. Four commands, about ten seconds. You are re-priming
-the client against the old box and flipping again, which is beats 3 and 4 replayed.
+the client against the old box and flipping again, which is beats 4 and 5 replayed.
 
-### 7. The right fix — move the identity, not the objection
+### 8. The right fix — move the identity, not the objection
 
 **Run**
 
 ```bash
 make fix-hostkeys
 make ssh
-docker compose exec server-new ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub
 ```
 
-**Expect** — the fix reports in under a second, the *identical* command from beat 5 now
-succeeds, and the new server's key still carries the old server's name in its comment field:
+**Expect** — the fix reports in under a second, and the *identical* command that failed in
+beat 6 now lands on the new server without a single client-side edit:
 
 ```
 FIX: transferring server-old's host keys to server-new
@@ -265,23 +296,78 @@ done — server-new is wearing server-old's cryptographic identity.
 
 NEW server-new
 server-new:~$
-
-256 SHA256:<the same fingerprint> root@server-old (ED25519)
 ```
 
 **Say** — "I did not touch the client. Its trust record is byte-for-byte what it was before
 — same file, same single line. What changed is the server: the new box now presents the old
 box's cryptographic identity, and I told the running daemon to pick it up, because sshd
-loads its keys once at startup and a file copy on its own does nothing. Read the last line:
-that key still says `root@server-old`, on a box called `server-new`. **Cryptographic
-identity inherited, application identity new** — and the banner proves both at once. That is
-what a real cutover does, because you cannot reach into every client on the network and tell
-it to forget something."
+loads its keys once at startup and a file copy on its own does nothing. **Cryptographic
+identity inherited, application identity new** — the banner still says server-new, but the
+key it presented is server-old's. That is what a real cutover does, because you cannot reach
+into every client on the network and tell it to forget something."
 
 *This survives a container restart* — the entrypoint's key generator only fills in keys that
-are missing, so a restart mid-demo cannot ambush you by undoing it.
+are missing, so a restart mid-demo cannot ambush you by undoing it. The reasoning in full is
+in `scripts/fix-hostkeys.sh`.
 
-### 8. Reset for the next take
+### 9. Instant rollback — no teardown
+
+**Run**
+
+```bash
+make flip-old
+make verify
+```
+
+**Expect** — one switch reload sends both protocols back to OLD; `make flip-old` truncates
+the evidence log and issues no request of its own, so the confirmation is the follow-up
+`make verify`, not a status-page counter:
+
+```
+FLIP: new -> old
+
+--- switch/active-proxy.conf (before)
++++ switch/active-proxy.conf (after)
+@@ -1,5 +1,5 @@
+-    default new;
++    default old;
+
+VERIFY: expecting OLD (selector word: old)
+HTTP  http://localhost:9092/whoami       ->  OLD server-old
+SSH   demo@app.demo.test:22              ->  OLD server-old  [banner; remote hostname: server-old]
+OK  both protocols report OLD — the expectation holds on HTTP and on SSH.
+```
+
+**Say** — "Watch what I did *not* do. I did not tear anything down, I did not rebuild, I did
+not restart a container. One word back, one reload, and both protocols are on the old box
+again — this is the rollback you actually want at 2am when the new stack misbehaves. And
+notice I confirm it with `make verify` rather than reading the projected counters: `make
+flip-old` is the reset direction, it zeroes the evidence log and issues no traffic of its
+own, so the honest confirmation is a fresh request, not a number the flip just cleared."
+
+### 10. The old proxy was never touched
+
+**Run**
+
+```bash
+make proxies-untouched
+```
+
+**Expect** — the sha256 of the two static proxy configs, identical to what they were before
+the whole cutover-and-rollback cycle:
+
+```
+c08ead2d84bacde04367ef87b28cf8c2310c8fec345b2b51846ecac590e022cb  proxy-old/nginx.conf
+1eea86ad2945330cabb01a7d27d900e5cbbe68d15d13317b204f207d4cb01736  proxy-new/nginx.conf
+```
+
+**Say** — "This is the proof, not the claim. Across everything we just did — validate,
+flip, break, fix, roll back — the only file that ever changed is one word in the switch's
+selector. The two proxies in front of the backends are byte-for-byte what they were when we
+started; here are their checksums. Nothing about the old path was disturbed to stand the new
+one up, which is exactly why the rollback was a single reload and not a recovery."
+
+### 11. Reset for the next take
 
 **Run**
 
@@ -308,6 +394,7 @@ checkout starts in. If you are running takes back to back, `make rearm` reaches 
 key state in about **one second** in place, with no rebuild: it gives the new server a fresh
 identity and clears the client's trust record, but it does **not** flip the selector back or
 clear the evidence log — pair it with `make flip-old` if you want the full opening state.
+Its reasoning is in `scripts/rearm.sh`.
 
 ---
 
@@ -315,11 +402,11 @@ clear the evidence log — pair it with `make flip-old` if you want the full ope
 
 Every one of these has already bitten during development.
 
-- **The browser caches the 301.** Beat 2 needs a private / incognito window, or devtools
-  with "Disable cache" ticked. In a normal window the second take never contacts nginx at
-  all, no redirect is logged, and the contrast beat silently stops being a contrast.
-  `make contrast` on the command line is immune — `curl` does not cache — and is the backup
-  path when a projector cannot show a URL bar.
+- **The browser caches the 301.** The contrast beat needs a private / incognito window, or
+  devtools with "Disable cache" ticked. In a normal window the second take never contacts
+  nginx at all, no redirect is logged, and the contrast beat silently stops being a
+  contrast. `make contrast` on the command line is immune — `curl` does not cache — and is
+  the backup path when a projector cannot show a URL bar.
 - **SSH runs from the `client` container, and that is not a cheat.** Inside the Docker
   network the proxy genuinely listens on **port 22**, so "SSH on port 22, no client-side
   change" is literally true — there is no `-p` flag anywhere in this demo. Binding a
@@ -331,11 +418,17 @@ Every one of these has already bitten during development.
   mechanism and the redirect is not. A redirect hands the client a new address and the
   client keeps it — often indefinitely — so it cannot be moved back and forth the way an
   upstream can. The status page counts only 9092 traffic for the same reason.
+- **`make flip-old` is the reset direction, and it truncates the evidence log.** The
+  rollback beat confirms with `make verify`, never with the projected counters, because
+  `flip-old` zeroes the evidence log and issues no confirming request of its own (that is
+  what keeps a reset from flashing a stale convergence sequence). If you narrate the status
+  page during the rollback you will be describing numbers the flip just cleared. Re-confirm
+  with a fresh request.
 - **`make reset` is the re-arm path.** The host-key gotcha only fires while the two backends
-  present different keys, and beat 7 deliberately destroys that. `make reset` (about 16 s,
-  full rebuild) is the documented way back; `make rearm` (about 1 s, in place) is the
-  between-takes fast path. Re-arming the keys is not enough on its own — you must re-prime
-  the client on the old box, which is beat 3.
+  present different keys, and the right-fix beat deliberately destroys that. `make reset`
+  (about 16 s, full rebuild) is the documented way back; `make rearm` (about 1 s, in place)
+  is the between-takes fast path. Re-arming the keys is not enough on its own — you must
+  re-prime the client on the old box, which is the priming beat.
 - **`make verify` cannot see a host-key problem, by design.** It pins the test-mode SSH
   options, which discard the client's trust record entirely, so it is structurally incapable
   of noticing that a host key changed. This has been measured: presenter-mode SSH failing
@@ -352,6 +445,6 @@ Every one of these has already bitten during development.
 ---
 
 *Reference material, the two connection modes, the exit-code vocabulary and the mechanism
-itself: `README.md`. The one file the cutover edits: `proxy/active-backend.conf`. The fix
+itself: `README.md`. The one file the cutover edits: `switch/active-proxy.conf`. The fix
 and the re-arm, with their reasoning in full: `scripts/fix-hostkeys.sh` and
 `scripts/rearm.sh`.*
