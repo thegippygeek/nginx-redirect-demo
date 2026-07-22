@@ -23,11 +23,12 @@ A live, on-stage flip of the nginx upstream from old to new where the client kee
 - ✓ nginx `stream` module proxies raw TCP on port 22 to a backend SSH server — Phase 3
 - ✓ Each backend self-identifies as OLD or NEW in its SSH login banner — Phase 3
 - ✓ An automated verify script curls HTTP and connects over SSH, asserting which backend answered — Phase 3
+- ✓ The SSH host-key mismatch failure (`REMOTE HOST IDENTIFICATION HAS CHANGED`) is staged deliberately, then fixed by transferring host keys to the new server — Phase 4
+- ✓ A written step-by-step walkthrough documents the live narrative: show old → flip → show new → SSH gotcha → fix — Phase 4
 
 ### Active
 
-- [ ] The SSH host-key mismatch failure (`REMOTE HOST IDENTIFICATION HAS CHANGED`) is staged deliberately, then fixed by transferring host keys to the new server
-- [ ] A written step-by-step walkthrough script documents the live narrative: show old → flip → show new → SSH gotcha → fix
+(None — all v1 requirements validated)
 
 ### Out of Scope
 
