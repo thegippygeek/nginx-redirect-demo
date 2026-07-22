@@ -58,9 +58,12 @@ services:
       retries: 10
       start_period: 3s
 
-  # The migration endpoint. Same pinned nginx as the backends, so there is one
-  # nginx version to explain on stage.
-  proxy:
+  # THE SWITCH — the migration endpoint and the flip surface (Phase 5). This is
+  # v1's `proxy` service, re-homed: it no longer talks to the backends directly.
+  # Its upstreams now point at the two static proxies, and it is the ONE tier the
+  # presenter flips. Same pinned nginx as the backends, so there is one nginx
+  # version to explain on stage. It is also now the sole evidence WRITER.
+  switch:
     image: nginx:1.30-alpine
     volumes:
       # Host-local time — see server-old. nginx renders $time_iso8601 in this
@@ -69,18 +72,17 @@ services:
       # The DIRECTORY is mounted, not the single file (RESEARCH Pitfall 10):
       # an editor that replaces the file's inode on the presenter's machine
       # cannot leave the container holding stale content.
-      - ./proxy:/etc/nginx/demo:ro
-      - ./proxy/nginx.conf:/etc/nginx/nginx.conf:ro
-      # The evidence log (D-29). Read-write here, read-only for the status
-      # service. The mount point is /var/log/demo and NOT the image's own log
-      # directory: that ships access.log as a symlink to the process stdout, and
-      # a volume mounted over it pre-populates from the image layer including
-      # that symlink — after which no real file is ever created and a reader
-      # hangs rather than erroring.
+      - ./switch:/etc/nginx/demo:ro
+      - ./switch/nginx.conf:/etc/nginx/nginx.conf:ro
+      # The evidence log (D-29). Read-write HERE — the switch is now the front
+      # tier and the only evidence writer; read-only for the status service. The
+      # mount point is /var/log/demo and NOT the image's own log directory: that
+      # ships access.log as a symlink to the process stdout, and a volume mounted
+      # over it pre-populates from the image layer including that symlink — after
+      # which no real file is ever created and a reader hangs rather than erroring.
       - demo-logs:/var/log/demo
-    # The Phase 1 verifier flagged this container as the one with no healthcheck.
-    # It probes the unpublished :8081 listener, never :9092: the smoke suite
-    # writes an invalid selector into 9092's path on purpose, and the probe would
+    # Probes the unpublished :8081 listener, never :9092: the smoke suite writes
+    # an invalid selector into 9092's path on purpose, and the probe would
     # otherwise land in the projected evidence table every 3 seconds.
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8081/nginx-health"]
@@ -93,18 +95,70 @@ services:
     ports: ["127.0.0.1:9092:9092", "127.0.0.1:9093:9093"]
     networks:
       default:
-        # D-01/D-02: the client container resolves the real hostname straight
-        # to this container through Docker's embedded DNS. Deliberately NOT
-        # `extra_hosts: host-gateway`, which resolved to IPv6 and routed the
-        # client out to the host and back in, hiding its real IP from the log.
+        # SW-01 / D-01/D-02: the client container resolves the real hostname
+        # straight to the SWITCH through Docker's embedded DNS. This alias MOVED
+        # here from v1's `proxy` service — the client's unchanged command now
+        # lands on the switch. Deliberately NOT `extra_hosts: host-gateway`,
+        # which resolved to IPv6 and routed the client out to the host and back
+        # in, hiding its real IP from the log.
         aliases: [app.demo.test]
-    # LOAD-BEARING, not decorative. nginx resolves `upstream ... server <name>`
-    # at config-PARSE time and aborts with `host not found in upstream` if
-    # Docker DNS cannot answer yet. Without this gate `docker compose up` fails
-    # intermittently — a demo-day failure mode (RESEARCH Pitfall 4).
+    # LOAD-BEARING, not decorative — and now one tier DEEPER (RESEARCH Pitfall 1).
+    # nginx resolves `upstream ... server <name>` at config-PARSE time and aborts
+    # with `host not found in upstream` if Docker DNS cannot answer yet. The
+    # switch parses `upstream proxy-old/proxy-new` on every reload, so it gates on
+    # the STATIC PROXIES being healthy, not the backends directly. This cascade is
+    # what makes `docker compose up -d --wait` deterministic (MIG-01).
+    depends_on:
+      proxy-old: {condition: service_healthy}
+      proxy-new: {condition: service_healthy}
+
+  # STATIC PROXY → server-old. A reduction of v1's proxy: one fixed upstream, no
+  # flip machinery, no evidence sink. It is NEVER reconfigured (PROX-01) — the
+  # switch does all the flipping. Publishes NOTHING: internal-only, reachable only
+  # from the switch and other containers on the demo network (T-05-04).
+  proxy-old:
+    image: nginx:1.30-alpine
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ./proxy-old:/etc/nginx/demo:ro
+      - ./proxy-old/nginx.conf:/etc/nginx/nginx.conf:ro
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8081/nginx-health"]
+      interval: 3s
+      timeout: 2s
+      retries: 10
+      start_period: 3s
+    networks:
+      default:
+        # PROX-03: a distinct alias per static proxy. app-old.demo.test reaches
+        # this tier directly (its SSH:22 stream is live this phase).
+        aliases: [app-old.demo.test]
+    # Gates on ITS OWN backend: nginx resolves `server server-old:80` at parse
+    # time, so this proxy must not start before server-old answers.
     depends_on:
       server-old: {condition: service_healthy}
+    # NO ports: — the static proxies expose no host ports at all (T-05-04).
+
+  # STATIC PROXY → server-new. Exact mirror of proxy-old (./proxy-new, the
+  # app-new.demo.test alias, and server-new). Also publishes nothing (PROX-02).
+  proxy-new:
+    image: nginx:1.30-alpine
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ./proxy-new:/etc/nginx/demo:ro
+      - ./proxy-new/nginx.conf:/etc/nginx/nginx.conf:ro
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8081/nginx-health"]
+      interval: 3s
+      timeout: 2s
+      retries: 10
+      start_period: 3s
+    networks:
+      default:
+        aliases: [app-new.demo.test]
+    depends_on:
       server-new: {condition: service_healthy}
+    # NO ports: — internal-only (T-05-04).
 
   # D-25: the evidence service. A fourth container, deliberately small.
   # Rejected alternatives: an nginx location on the proxy (nginx alone cannot
@@ -119,6 +173,13 @@ services:
     # -u is load-bearing: without it stdout buffering swallows the service's
     # own diagnostics and they never reach `docker compose logs status`.
     command: ["python3", "-u", "/app/status.py"]
+    # Re-pointed to the SWITCH (Phase 5). The status service reads the switch's
+    # active-proxy.conf selector and probes the switch's unpublished :8081 health
+    # listener. status.py carries the same values as its module defaults so it is
+    # honest standalone; these make the wiring explicit at the compose layer.
+    environment:
+      DEMO_PROXY_PROBE: http://switch:8081/nginx-health
+      DEMO_CONF_PATH: /etc/nginx/demo/active-proxy.conf
     volumes:
       # ALL FOUR MOUNTS ARE READ-ONLY, and the evidence one is the load-bearing
       # one: it is what lets the reading be believed. The tier that REPORTS the
@@ -132,8 +193,10 @@ services:
       # presenter option, and an editor that replaces the file's inode would
       # leave a single-file mount holding stale content forever — the status
       # page would then report a cutover that had already happened as PENDING.
-      # The proxy mounts the same directory for the same reason.
-      - ./proxy:/etc/nginx/demo:ro
+      # The switch mounts the same directory for the same reason. Re-pointed to
+      # ./switch (Phase 5): the selector the status page reads is now the
+      # switch's active-proxy.conf, not v1's proxy/active-backend.conf.
+      - ./switch:/etc/nginx/demo:ro
       - demo-logs:/var/log/demo:ro
       # Host-local time — see server-old. This is THE surface that matters: the
       # projected status clock (served_at, traffic_at) is rendered here via
@@ -157,11 +220,11 @@ services:
       timeout: 2s
       retries: 10
       start_period: 3s
-    # NO depends_on the proxy, deliberately. UI-SPEC acceptance test 4 stops the
-    # proxy and expects UNAVAILABLE within 5 s; a health dependency risks Compose
-    # taking this service down with the proxy, leaving nothing to render the very
-    # state D-28 exists to guarantee. This service is at its MOST valuable when
-    # the proxy is dead.
+    # NO depends_on the switch, deliberately. UI-SPEC acceptance test 4 stops the
+    # front tier and expects UNAVAILABLE within 5 s; a health dependency risks
+    # Compose taking this service down with the switch, leaving nothing to render
+    # the very state D-28 exists to guarantee. This service is at its MOST
+    # valuable when the switch is dead.
 
   # D-02: a command source, not a service. No published ports. From Phase 3
   # this is the canonical SSH source — it reaches the backends entirely over
@@ -176,7 +239,7 @@ services:
     # The ONLY read-write mount of the keypair. See the volumes block at the foot.
     volumes:
       - demo-keys:/keys
-    depends_on: [proxy]
+    depends_on: [switch]
 
 # D-29: the status service reads the proxy's evidence log through this shared
 # named volume. Mounting the Docker socket to read container stdout was

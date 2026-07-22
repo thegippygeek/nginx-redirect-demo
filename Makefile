@@ -19,7 +19,7 @@
 # surface, and `make clear-evidence` is the explicit lever.
 up:
 	docker compose up -d --build --wait
-	@docker compose exec -T proxy sh -c ': > /var/log/demo/access.log'
+	@docker compose exec -T switch sh -c ': > /var/log/demo/access.log'
 	@echo "evidence log cleared — this take starts from zero"
 	@$(MAKE) status
 
@@ -36,7 +36,7 @@ check: status
 # backend is what proves it truly landed there rather than being served from
 # somewhere upstream. The extra noise is the price of that proof.
 logs:
-	docker compose logs -f proxy server-old server-new
+	docker compose logs -f switch server-old server-new
 
 # D-31: the same log, made legible from the back of a room. Timestamps come from
 # Docker (-t), so log_format demo is not touched at all — it stays realistic,
@@ -50,7 +50,7 @@ logs:
 #
 # Note the doubled $$ — Make consumes a single $ (RESEARCH Pitfall 9).
 logs-demo:
-	docker compose logs -f -t proxy server-old server-new | awk '\
+	docker compose logs -f -t switch server-old server-new | awk '\
 	  /backend=NEW/ { printf "\033[1;97;42m NEW \033[0m %s\n", $$0; next } \
 	  /backend=OLD/ { printf "\033[1;97;43m OLD \033[0m %s\n", $$0; next } \
 	  { print }'
@@ -96,8 +96,8 @@ contrast:
 # `docker compose restart proxy` — that contradicts D-14 and throws away the
 # zero-downtime point. Phase 2's `make flip` inherits this discipline.
 reload:
-	docker compose exec proxy nginx -t
-	docker compose exec proxy nginx -s reload
+	docker compose exec switch nginx -t
+	docker compose exec switch nginx -s reload
 	@sleep 1 && curl -fsS http://localhost:9092/whoami
 
 # D-33: both command shapes ship. `flip` toggles whatever is currently selected
@@ -192,8 +192,8 @@ rearm:
 	@sh scripts/rearm.sh
 
 # D-36, as an explicit lever. Truncate, never unlink: nginx holds the descriptor
-# and would keep writing into an unlinked inode. Issued into the PROXY
-# container — the status service's mount is read-only by design.
+# and would keep writing into an unlinked inode. Issued into the SWITCH
+# container — it owns the rw evidence mount; the status service's is read-only.
 clear-evidence:
-	@docker compose exec -T proxy sh -c ': > /var/log/demo/access.log'
+	@docker compose exec -T switch sh -c ': > /var/log/demo/access.log'
 	@echo "evidence log cleared — the next take starts from zero"
