@@ -274,17 +274,19 @@ switch:
 
 All four are presentation/scope judgements, not technical unknowns. Every nginx behavioural claim in this document is `[VERIFIED]`.
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **`remote_addr` presentation on the status page**
    - What we know: it must be added to the evidence JSON (verified the switch captures it); the status page currently shows time/path/status/backend/ms/bhost.
    - What's unclear: new column vs. a header line ("client: <ip>") vs. per-row — a UI-SPEC decision.
    - Recommendation: resolve in the UI-phase for Phase 5; keep it a single, low-emphasis surface (the money shot stays OLD→NEW).
+   - **RESOLVED:** no separate UI-SPEC produced (zero-visual-change plumbing phase, guarded by v1's UI token audit). Adopted in 05-02 Task 2 as a single low-emphasis client-IP column following v1's existing status-page design tokens.
 
 2. **SSH assertions in `smoke.sh` during an HTTP-only phase**
    - What we know: `section_ssh`/`_walkthrough`/`_hostkey` assert over port 22; Phase 5 wires HTTP only through the switch, though the static proxies can already carry SSH.
    - What's unclear: skip-until-Phase-6 vs. keep-green-via-static-proxies.
    - Recommendation: if the static proxies ship their SSH stream in Phase 5 (A2), the direct `app-old`/`app-new:22` path is already testable; keep those green and defer only the *switch's* SSH:22 assertions to Phase 6.
+   - **RESOLVED:** static proxies ship their SSH stream now (05-01 Task 2, inert until Phase 6). 05-03 Task 3 gates `section_ssh`/`section_hostkey` out of the `make test` `all` runner with explicit `# Phase 6 (SW-03)` markers — functions preserved intact, not deleted.
 
 ## Environment Availability
 
