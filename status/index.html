@@ -138,13 +138,15 @@ body{
 .evidence{ display:grid; grid-template-columns: 73.5rem 3rem 37.5rem; }
 
 /* --- 4a. the recent-requests table.
-   Five FIXED-pixel columns: 12 + 200 + 620 + 120 + 224 = 1176. Fixed, not
+   Six FIXED-pixel columns: 12 + 200 + 420 + 120 + 200 + 224 = 1176. Fixed, not
    fractional, so a growing path string cannot reflow the columns and make the
-   boundary rule appear to move. */
+   boundary rule appear to move. The CLIENT column (EV2-01) is carved out of the
+   path width — a low-emphasis reading of the requester's real address, proving
+   the switch logs the client and not a static-proxy hop. */
 .tbl{ display:flex; flex-direction:column; }
 .thead,.row{
   display:grid;
-  grid-template-columns: .75rem 12.5rem 38.75rem 7.5rem 14rem;
+  grid-template-columns: .75rem 12.5rem 26.25rem 7.5rem 12.5rem 14rem;
   align-items:center;
 }
 .thead{
@@ -177,6 +179,10 @@ body{
 .row .c-time{ font-family:var(--font-mono); padding:0 var(--md); }
 .row .c-path{ font-family:var(--font-mono); text-overflow:ellipsis; }
 .row .c-status{ font-family:var(--font-mono); }
+/* The CLIENT column (EV2-01). Low-emphasis on purpose: muted, one size down
+   from the row, monospace so addresses align — it corroborates, it is not the
+   money shot. Never an accent colour (the colour rule below asserts that). */
+.row .c-remote{ font-family:var(--font-mono); font-size:var(--fs-meta); color:var(--mut); }
 .row .c-backend{ font-weight:700; text-align:right; letter-spacing:.08em; }
 
 /* The SHAPE channel. OLD and NEW are isoluminant, so colour alone carries
@@ -332,6 +338,7 @@ body{
         <span class="h-time">TIME</span>
         <span class="h-path">PATH</span>
         <span class="h-status">STATUS</span>
+        <span class="h-remote">CLIENT</span>
         <span class="h-backend">BACKEND</span>
       </div>
       <div class="tbody" id="tbody">
@@ -519,6 +526,7 @@ function rowEl(r){
   row.appendChild(el("span", "c-time", r.time || ""));
   row.appendChild(el("span", "c-path", shortPath(r.path)));
   row.appendChild(el("span", "c-status", String(r.status == null ? "" : r.status)));
+  row.appendChild(el("span", "c-remote", r.remote || ""));
   row.appendChild(el("span", "c-backend", r.backend || ""));
   return row;
 }
