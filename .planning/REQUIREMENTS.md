@@ -128,6 +128,7 @@ Explicitly excluded. Documented to prevent scope creep.
 | Production hardening (auth, rate limiting, real certs) | This is a demonstration artifact, not a deployable proxy |
 | Fully automated hands-off playback | Presenter controls pacing during the live narrative |
 | Vendor-specific naming in the demo itself | Generic `server-old` / `server-new` keeps it reusable for any migration |
+| New SSH host-key scope in v2 | The host-key gotcha is inherited backend behaviour (v1 KEY-*); v2 surfaces it in the walkthrough but adds no new key requirement |
 
 ## Traceability
 
@@ -168,22 +169,43 @@ Which phases cover which requirements. Updated during roadmap creation.
 | WALK-01 | Phase 4 | Complete |
 | WALK-02 | Phase 4 | Complete |
 | WALK-03 | Phase 4 | Complete |
+| SW-01 | Phase 5 | Pending |
+| SW-02 | Phase 5 | Pending |
+| SW-03 | Phase 6 | Pending |
+| SW-04 | Phase 5 | Pending |
+| PROX-01 | Phase 5 | Pending |
+| PROX-02 | Phase 5 | Pending |
+| PROX-03 | Phase 5 | Pending |
+| VAL-01 | Phase 6 | Pending |
+| VAL-02 | Phase 6 | Pending |
+| VAL-03 | Phase 7 | Pending |
+| VAL-04 | Phase 7 | Pending |
+| EV2-01 | Phase 5 | Pending |
+| EV2-02 | Phase 5 | Pending |
+| EV2-03 | Phase 5 | Pending |
+| EV2-04 | Phase 6 | Pending |
+| MIG-01 | Phase 5 | Pending |
+| MIG-02 | Phase 7 | Pending |
+| MIG-03 | Phase 7 | Pending |
 
 **Coverage:**
 
-- v1 requirements: 33 total
-- Mapped to phases: 33 ✓
-- Unmapped: 0
+- v1 requirements: 33 total — mapped to Phases 1–4: 33 ✓ (all Complete)
+- v2.0 requirements: 18 total — mapped to Phases 5–7: 18 ✓ (all Pending)
+- Combined: 51 total, 51 mapped, 0 unmapped
 
 **By phase:**
 
-| Phase | Name | Requirements |
-|-------|------|--------------|
-| 1 | Demo Up, HTTP Lands on OLD | 11 |
-| 2 | The Live HTTP Cutover | 7 |
-| 3 | SSH Through the Stream Proxy | 8 |
-| 4 | Host-Key Gotcha and the Presenter Walkthrough | 7 |
+| Phase | Milestone | Name | Requirements |
+|-------|-----------|------|--------------|
+| 1 | v1 | Demo Up, HTTP Lands on OLD | 11 |
+| 2 | v1 | The Live HTTP Cutover | 7 |
+| 3 | v1 | SSH Through the Stream Proxy | 8 |
+| 4 | v1 | Host-Key Gotcha and the Presenter Walkthrough | 7 |
+| 5 | v2.0 | The Switch and Two Static Proxies — HTTP Cutover Re-Homed | 10 |
+| 6 | v2.0 | The SSH Stream Flip and Pre-Flip Validation | 4 |
+| 7 | v2.0 | Instant Rollback, v1 Preservation, and the v2 Walkthrough | 4 |
 
 ---
 *Requirements defined: 2026-07-21*
-*Last updated: 2026-07-22 — added v2.0 (two-proxy switch topology) requirements: SW, PROX, VAL, EV2, MIG*
+*Last updated: 2026-07-22 — mapped v2.0 requirements (SW, PROX, VAL, EV2, MIG) to Phases 5–7 in the roadmap traceability table*
