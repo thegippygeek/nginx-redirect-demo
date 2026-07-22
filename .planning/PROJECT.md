@@ -8,6 +8,18 @@ A self-contained Docker Compose demo that simulates migrating a hostname from on
 
 A live, on-stage flip of the nginx upstream from old to new where the client keeps hitting the same hostname and port, and unmistakably lands on the new server.
 
+## Current Milestone: v2.0 Two-Proxy Switch Topology
+
+**Goal:** Replace v1's single flip-in-place proxy with a blue-green proxy tier — a front "switch" nginx that flips traffic between two static proxies, enabling pre-flip validation of the new stack and instant rollback.
+
+**Target features:**
+- A `switch` nginx: the client's only endpoint (`app.demo.test`), flipping a one-line map (`default old`→`new`) across HTTP :9092 and SSH :22 stream — the sole flip surface (`switch/active-proxy.conf`), replacing v1's `proxy/active-backend.conf`.
+- Two **static** proxies — `proxy-old`→server-old (`app-old.demo.test`) and `proxy-new`→server-new (`app-new.demo.test`) — each single-upstream and never reconfigured during the demo.
+- Evidence log sourced from the **switch** (it sees the client's real `remote_addr`; the backend's own `X-Backend` header still flows back through the chain so `backend=NEW` stays honest); status service re-pointed to the switch's log.
+- Pre-flip validation of the new stack: `curl`/`ssh app-new.demo.test` proves it live *before* the cutover, and rollback is instant by flipping the switch back — making "the old proxy is never touched" literally true.
+
+**Key context:** The map-flip + `nginx -s reload` *mechanism* is unchanged from v1, so the on-stage flip action is identical — what changes is the architecture around it. Tradeoff: one extra proxy hop each way. The v1 single-proxy demo is preserved intact.
+
 ## Requirements
 
 ### Validated
@@ -85,4 +97,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-07-22 — genericised framing (removed vendor-specific AWS/Nutanix references; the demo is environment-agnostic)*
+*Last updated: 2026-07-22 — started milestone v2.0 (two-proxy switch topology)*
