@@ -370,16 +370,18 @@ No new secrets, no new external surface, no new packages — the security postur
 
 **All three assumptions are low/no risk and cross-checked against in-repo evidence.** No user confirmation required before planning.
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Should `verify.sh --target app-new` be a `--target <name>` flag or a positional/second mode?**
    - What we know: current `verify.sh` takes one positional `<old|new>` (the expectation) and has a `VERIFY_SSH_HOST` test seam. EV2-04 asks for "a mode/flag to target app-new.demo.test directly."
    - What's unclear: exact CLI ergonomics (planner/discuss decision).
    - Recommendation: add `--target app-new` (default `switch`) that redirects BOTH probes to the client container against `app-new.demo.test` and fixes expectation to NEW; keep the existing positional for through-switch mode. Surface via a Make target (e.g. `make verify-new-stack`).
+   - **RESOLVED:** adopted verbatim in 06-02 Task 1 — `--target app-new` (default `switch`), both probes from the client container, expectation fixed NEW, positional through-switch mode + 0/1/2/3 exit vocabulary preserved, surfaced as `make verify-new-stack`.
 
 2. **Do the SSH-02 config-shape assertions grep `switch/nginx.conf` or keep an assertion against archived `proxy/nginx.conf`?**
    - What we know: the LIVE stream block is on the switch now; `proxy/nginx.conf` is inert but present.
    - Recommendation: point SSH-02/D-46 assertions at `switch/nginx.conf` (the live config). Leave `proxy/` untouched for Phase 7's MIG-03. Do not assert against the archived file.
+   - **RESOLVED:** 06-01 Task 2 asserts SSH-02/D-46 against the live `switch/nginx.conf`; `proxy/` left untouched for Phase 7's MIG-03.
 
 ## Sources
 
