@@ -4,7 +4,7 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 4
 current_phase_name: Host-Key Gotcha and the Presenter Walkthrough
-status: verifying
+status: complete
 stopped_at: Completed 04-04-PLAN.md — final plan of v1
 last_updated: "2026-07-21T23:36:05.921Z"
 last_activity: 2026-07-21
