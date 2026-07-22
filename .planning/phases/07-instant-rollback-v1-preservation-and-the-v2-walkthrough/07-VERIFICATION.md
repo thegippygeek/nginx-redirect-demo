@@ -1,8 +1,8 @@
 ---
 phase: 07-instant-rollback-v1-preservation-and-the-v2-walkthrough
 verified: 2026-07-22T00:00:00Z
-status: human_needed
-score: 3/4 must-haves verified (criterion 4 automated-complete, comprehensibility human-pending)
+status: passed
+score: 4/4 must-haves verified (comprehensibility cold-read PASSED by user 2026-07-22)
 behavior_unverified: 0
 overrides_applied: 0
 human_verification:
@@ -39,7 +39,7 @@ human_verification:
 
 **Phase Goal:** Close the milestone's story — instant rollback (flip the switch back, no teardown), the two static proxies shown byte-unchanged across the whole cutover ("the old proxy is never touched" = a verifiable checksum), v1 kept runnable from its preserved form (git tag `v1.0`), and the presenter walkthrough rewritten for the v2 narrative.
 **Verified:** 2026-07-22
-**Status:** human_needed
+**Status:** passed (comprehensibility cold-read PASSED by user 2026-07-22)
 **Re-verification:** No — initial verification
 
 ## Goal Achievement

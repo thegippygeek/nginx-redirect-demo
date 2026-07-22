@@ -1,5 +1,5 @@
 ---
-status: testing
+status: resolved
 phase: 07-instant-rollback-v1-preservation-and-the-v2-walkthrough
 source: [07-VERIFICATION.md]
 started: 2026-07-22T00:00:00Z
@@ -15,7 +15,7 @@ expected: |
   every one of the 11 beats, and the narrative reads as a coherent v2 story:
   validate → show old → redirect contrast → prime → flip → gotcha → wrong fix → right fix →
   rollback → old-proxy-untouched → reset.
-awaiting: user response
+result: PASSED — user ran the walkthrough cold-read and confirmed success (2026-07-22)
 
 ## Tests
 
@@ -42,14 +42,14 @@ why_human: |
   self-containment and executability only (11 beats, real targets, resolvable paths, Run/Expect/Say
   order, traps) — never comprehensibility. Explicit blocking human checkpoint (Phase 4 / T-04-16
   precedent).
-result: [pending]
+result: [pass] — user cold-read the walkthrough end to end and confirmed success (2026-07-22)
 
 ## Summary
 
 total: 1
-passed: 0
+passed: 1
 issues: 0
-pending: 1
+pending: 0
 skipped: 0
 blocked: 0
 

@@ -98,7 +98,7 @@ Current milestone. A front `switch` nginx flips traffic between two static proxi
 ### Migration Story & Continuity
 
 - [x] **MIG-01**: The whole v2 topology (switch + two proxies + two backends + status) comes up with one `docker compose up`, preserving ENV-01 across the added services
-- [ ] **MIG-02**: The presenter walkthrough narrates the v2 story: validate the new stack via `app-new.demo.test` → flip the switch → land on new → (host-key gotcha, inherited from v1) → roll back → the old proxy was never touched
+- [x] **MIG-02**: The presenter walkthrough narrates the v2 story: validate the new stack via `app-new.demo.test` → flip the switch → land on new → (host-key gotcha, inherited from v1) → roll back → the old proxy was never touched
 - [x] **MIG-03**: The v1 single-proxy demo remains available and unbroken (e.g. via git tag or a preserved compose file), not deleted by v2 work
 
 ## Future / Deferred Requirements
@@ -185,7 +185,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | EV2-03 | Phase 5 | Complete |
 | EV2-04 | Phase 6 | Complete |
 | MIG-01 | Phase 5 | Complete |
-| MIG-02 | Phase 7 | Pending |
+| MIG-02 | Phase 7 | Complete |
 | MIG-03 | Phase 7 | Complete |
 
 **Coverage:**
