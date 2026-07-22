@@ -9,7 +9,7 @@
 # target vocabulary is stable from the start; their recipes arrive with the
 # plans that own them.
 
-.PHONY: up down status logs logs-demo test reset contrast reload check flip flip-old flip-new verify clear-evidence ssh fix-hostkeys rearm
+.PHONY: up down status logs logs-demo test reset contrast reload check flip flip-old flip-new verify verify-new-stack clear-evidence ssh fix-hostkeys rearm
 
 # The evidence volume survives `docker compose down` and is removed only by
 # `down -v`, so without the truncation below a down+up cycle would resume a
@@ -127,6 +127,17 @@ flip-new:
 EXPECT ?= old
 verify:
 	@sh scripts/verify.sh $(EXPECT)
+
+# VAL-01/VAL-02/EV2-04: the PRE-FLIP proof, the milestone's headline payoff. One
+# HTTP request and one SSH connection, both taken from inside the client
+# container against app-new.demo.test (the Docker-DNS-only alias on proxy-new),
+# reporting NEW on both protocols BEFORE any cutover — while `make verify` on the
+# same rig still reports OLD through the switch. This is what the two-proxy
+# topology buys over v1: the presenter watches the new stack answer on both
+# protocols and only THEN commits to the flip. Exit 0 means both protocols agree
+# NEW; the 0/1/2/3 vocabulary in the script is shared with `make verify`.
+verify-new-stack:
+	@sh scripts/verify.sh --target app-new
 
 # make ssh — PRESENTER MODE (D-52), and the only mode in which the Phase 4
 # host-key gotcha is reachable.

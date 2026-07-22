@@ -1,10 +1,26 @@
 #!/bin/sh
 # scripts/verify.sh — DID THE CUTOVER LAND, ON BOTH PROTOCOLS?
 #
-# Usage: sh scripts/verify.sh <old|new>        (or: make verify EXPECT=new)
+# Usage: sh scripts/verify.sh <old|new>            (through the switch; or: make verify EXPECT=new)
+#        sh scripts/verify.sh --target app-new     (pre-flip proof; or: make verify-new-stack)
 #
 # One command that issues an HTTP request AND an SSH connection, reports which
 # backend answered EACH on its own labelled line, and can say no.
+#
+# TWO TARGETS, one verdict machine:
+#
+#   --target switch  (DEFAULT, positional <old|new>)  The cutover verdict. HTTP
+#                    on the host at localhost:9092, SSH to app.demo.test — both
+#                    THROUGH the switch, so the selector word decides the answer.
+#                    This is the mode with the full 0/1/2/3 vocabulary below.
+#   --target app-new                                   The PRE-FLIP proof. BOTH
+#                    probes run INSIDE the client container against the
+#                    Docker-DNS-only alias app-new.demo.test (HTTP on proxy-new's
+#                    :80 — NOT 9092 — and SSH on :22), because the alias resolves
+#                    only on the demo network and no proxy host port is published.
+#                    Expectation is fixed to NEW: proxy-new is static, there is
+#                    nothing to flip. It reads the new stack DIRECTLY, bypassing
+#                    the switch — so it holds while the switch is still on OLD.
 #
 # Exit-code vocabulary — four distinct answers, because on stage they mean four
 # different things and must never be confused with one another:
@@ -29,7 +45,12 @@
 # present in this file. It is not documented in the README and not surfaced by
 # the Make target.
 
+# Switch-mode defaults (the through-switch cutover verdict). --target app-new
+# overrides HTTP_URL, HTTP_EXEC and SSH_TARGET below; HTTP_EXEC is the optional
+# `docker compose exec -T client` prefix that moves a probe off the host and into
+# the client container — empty for switch mode (host-side curl), set for app-new.
 HTTP_URL=http://localhost:9092/whoami
+HTTP_EXEC=
 SSH_TARGET=${VERIFY_SSH_HOST:-app.demo.test}
 SSH_USER=demo
 
@@ -58,7 +79,8 @@ SSH_USER=demo
 VERIFY_SSH_OPTS="-o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
 
 usage() {
-	echo "usage: sh scripts/verify.sh <old|new>" >&2
+	echo "usage: sh scripts/verify.sh <old|new>            (through the switch)" >&2
+	echo "       sh scripts/verify.sh --target app-new     (pre-flip, direct to the new stack)" >&2
 	exit 2
 }
 
@@ -88,20 +110,53 @@ observed_hostname() {
 	fi
 }
 
-[ $# -eq 1 ] || usage
-case "$1" in
-old) EXPECT_LABEL=OLD ;;
-new) EXPECT_LABEL=NEW ;;
-*) usage ;;
-esac
+# ---- mode selection ----------------------------------------------------------
+# The flag form is parsed FIRST and only for --target, so the positional
+# <old|new> form — and its exit-2 usage path — survives byte-for-byte. A fumbled
+# --target (missing or unknown value) is a usage error (exit 2), never a mismatch.
+TARGET=switch
+if [ "$1" = "--target" ]; then
+	case "${2:-}" in
+	app-new)
+		TARGET=app-new
+		shift 2
+		[ $# -eq 0 ] || usage   # app-new takes no positional expectation
+		;;
+	switch)
+		TARGET=switch
+		shift 2                 # falls through to the positional <old|new> parse
+		;;
+	*) usage ;;
+	esac
+fi
 
-echo "VERIFY: expecting $EXPECT_LABEL (selector word: $1)"
+if [ "$TARGET" = app-new ]; then
+	# Pre-flip proof: both probes from the client container, expectation fixed NEW.
+	# HTTP lands on proxy-new's :80 (the alias's own listener), NOT the switch's 9092.
+	EXPECT_LABEL=NEW
+	HTTP_URL=http://app-new.demo.test/whoami
+	HTTP_EXEC='docker compose exec -T client'
+	SSH_TARGET=app-new.demo.test
+	echo "VERIFY: expecting $EXPECT_LABEL over app-new.demo.test (pre-flip, direct to the new stack, from the client container)"
+else
+	[ $# -eq 1 ] || usage
+	case "$1" in
+	old) EXPECT_LABEL=OLD ;;
+	new) EXPECT_LABEL=NEW ;;
+	*) usage ;;
+	esac
+	echo "VERIFY: expecting $EXPECT_LABEL (selector word: $1)"
+fi
 
 # ------------------------------------------------- the HTTP reading, always 1st
 # Captured into a variable with its status read on the NEXT line, for the same
 # reason the SSH probe below is — and bounded, so a wedged proxy cannot stall
 # the run.
-HTTP_OUT=$(curl -fsS --max-time 5 "$HTTP_URL" 2>&1)
+# $HTTP_EXEC is empty in switch mode (host-side curl at localhost:9092) and the
+# `docker compose exec -T client` prefix in app-new mode (the alias is
+# Docker-DNS-only). Left unquoted deliberately, so it word-splits into the prefix
+# or vanishes entirely — the SSH probe below is already client-side in both modes.
+HTTP_OUT=$($HTTP_EXEC curl -fsS --max-time 5 "$HTTP_URL" 2>&1)
 HTTP_RC=$?
 HTTP_OBS=$(observed_label "$HTTP_OUT")
 
